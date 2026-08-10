@@ -10,6 +10,7 @@ from typing import Any
 
 
 SERVER_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+TUNNEL_ID_RE = re.compile(r"^tunnel_[0-9a-f]{32}$")
 
 
 def default_config_path() -> Path:
@@ -52,6 +53,41 @@ def validate_server_name(name: str) -> str:
             "MCP name must be 1-64 characters: letters, digits, dot, dash, underscore"
         )
     return name
+
+
+def validate_tunnel_id(tunnel_id: str) -> str:
+    if not TUNNEL_ID_RE.fullmatch(tunnel_id):
+        raise ValueError("Tunnel ID must be tunnel_ followed by 32 hexadecimal characters")
+    return tunnel_id
+
+
+def setup_status(
+    config: dict[str, Any], *, runtime_key_configured: bool
+) -> dict[str, Any]:
+    missing: list[str] = []
+    tunnel_id = str(config.get("tunnel", {}).get("tunnel_id", ""))
+    if not TUNNEL_ID_RE.fullmatch(tunnel_id):
+        missing.append("tunnel_id")
+    if not runtime_key_configured:
+        missing.append("runtime_api_key")
+
+    access = config.get("access", {})
+    mode = access.get("mode")
+    if mode == "full" and not access.get("acknowledged_full_access", False):
+        missing.append("full_access_acknowledgement")
+    elif mode == "scoped" and not access.get("allowed_roots"):
+        missing.append("scoped_roots")
+
+    return {
+        "complete": not missing,
+        "missing": missing,
+        "tunnel_id_configured": bool(TUNNEL_ID_RE.fullmatch(tunnel_id)),
+        "runtime_key_configured": bool(runtime_key_configured),
+        "access_configured": not any(
+            item in missing
+            for item in ("full_access_acknowledgement", "scoped_roots")
+        ),
+    }
 
 
 def _validate(config: dict[str, Any]) -> None:

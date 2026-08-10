@@ -35,8 +35,16 @@ def register_host_tools(mcp: FastMCP, config: dict[str, Any]) -> None:
             "acknowledged_full_access", False
         ):
             raise PermissionError(
-                "Full host access has not been acknowledged. Run "
-                "`ethergpt init --i-understand-full-access`."
+                "Full host access has not been acknowledged. Run `ethergpt setup` "
+                "or open the local EtherGPT dashboard."
+            )
+
+    def require_shell_access() -> None:
+        require_full_access_acknowledgement()
+        if access.get("mode") != "full":
+            raise PermissionError(
+                "Arbitrary shell commands are disabled in scoped mode. "
+                "Use the path-scoped file tools or switch to acknowledged full access."
             )
 
     @mcp.tool(
@@ -82,7 +90,7 @@ def register_host_tools(mcp: FastMCP, config: dict[str, Any]) -> None:
         Commands may install packages, edit repositories, run tests, manage services,
         or delete data. Use cwd to select a working directory.
         """
-        require_full_access_acknowledgement()
+        require_shell_access()
         timeout = max(1, min(int(timeout_seconds), max_timeout))
         resolved_cwd = str(resolve_access_path(config, cwd)) if cwd else None
         started = time.monotonic()
@@ -217,7 +225,7 @@ def register_host_tools(mcp: FastMCP, config: dict[str, Any]) -> None:
     )
     async def host_process_start(command: str, cwd: str | None = None) -> dict[str, Any]:
         """Start a long-running Bash command and return a process id for later reads or stop."""
-        require_full_access_acknowledgement()
+        require_shell_access()
         resolved_cwd = str(resolve_access_path(config, cwd)) if cwd else None
         process = await asyncio.create_subprocess_shell(
             command,

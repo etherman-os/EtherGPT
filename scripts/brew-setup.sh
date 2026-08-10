@@ -31,4 +31,6 @@ fi
 "$ROOT_DIR/install.sh"
 
 echo
-echo "Mac setup complete. Initialize once, then use 'ethergpt' / 'ethergpt off'."
+echo "Mac install complete. Starting EtherGPT…"
+"$HOME/.local/bin/ethergpt"
+echo "If setup is incomplete, EtherGPT opens the local setup dashboard automatically."

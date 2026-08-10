@@ -33,7 +33,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status.tag = 100
         menu.addItem(status)
         menu.addItem(.separator())
-        menu.addItem(item("Open Dashboard", #selector(openDashboard)))
+        let dashboardItem = item("Open Dashboard", #selector(openDashboard))
+        dashboardItem.tag = 101
+        menu.addItem(dashboardItem)
         menu.addItem(item("Enable & Start (Auto-start ON)", #selector(enableService)))
         menu.addItem(item("Restart", #selector(restartService)))
         menu.addItem(item("Disable & Stop (Auto-start OFF)", #selector(disableService)))
@@ -59,13 +61,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return ok
     }
 
+    private func setupRequired() -> Bool {
+        let url = URL(string: "http://127.0.0.1:8766/api/status")!
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 1.5
+        let semaphore = DispatchSemaphore(value: 0)
+        var required = false
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            if let http = response as? HTTPURLResponse,
+               (200..<300).contains(http.statusCode),
+               let data = data,
+               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let complete = payload["setup_complete"] as? Bool {
+                required = !complete
+            }
+            semaphore.signal()
+        }.resume()
+        _ = semaphore.wait(timeout: .now() + 2)
+        return required
+    }
+
     private func refreshStatus() {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self = self else { return }
             let gateway = self.fetch(URL(string: "http://127.0.0.1:8766/readyz")!)
+            let needsSetup = gateway && self.setupRequired()
             let tunnel = self.fetch(URL(string: "http://127.0.0.1:8088/readyz")!)
             DispatchQueue.main.async {
-                if gateway && tunnel {
+                self.statusItem.menu?.item(withTag: 101)?.title = needsSetup ? "Setup required — Open Dashboard…" : "Open Dashboard"
+                if needsSetup {
+                    self.startingUntil = .distantPast
+                    self.statusItem.button?.title = "EtherGPT SETUP"
+                    self.statusItem.menu?.item(withTag: 100)?.title = "Setup required — press Open Dashboard"
+                } else if gateway && tunnel {
                     self.startingUntil = .distantPast
                     self.statusItem.button?.title = "EtherGPT ✓"
                     self.statusItem.menu?.item(withTag: 100)?.title = "Gateway ✓   Tunnel ✓"

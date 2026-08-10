@@ -8,6 +8,8 @@ from ethergpt.config import (
     resolve_access_path,
     save_config,
     server_mcp_config,
+    setup_status,
+    validate_tunnel_id,
 )
 
 
@@ -48,3 +50,26 @@ def test_scoped_access_rejects_outside_root(tmp_path: Path) -> None:
     assert resolve_access_path(config, str(root / "file.txt")) == root / "file.txt"
     with pytest.raises(PermissionError):
         resolve_access_path(config, str(tmp_path / "outside.txt"))
+
+
+def test_setup_status_lists_missing_connection_fields() -> None:
+    config = default_config()
+    state = setup_status(config, runtime_key_configured=False)
+    assert state["complete"] is False
+    assert state["missing"] == [
+        "tunnel_id",
+        "runtime_api_key",
+        "full_access_acknowledgement",
+    ]
+
+    config["tunnel"]["tunnel_id"] = "tunnel_" + "a" * 32
+    config["access"]["acknowledged_full_access"] = True
+    state = setup_status(config, runtime_key_configured=True)
+    assert state["complete"] is True
+    assert state["missing"] == []
+
+
+def test_tunnel_id_validation() -> None:
+    assert validate_tunnel_id("tunnel_" + "0" * 32).startswith("tunnel_")
+    with pytest.raises(ValueError, match="Tunnel ID"):
+        validate_tunnel_id("not-a-tunnel")

@@ -3,10 +3,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
+import hashlib
 import json
 import os
 import platform
-import re
 import shutil
 import signal
 import subprocess
@@ -28,6 +28,8 @@ from .config import (
     public_config,
     save_config,
     server_mcp_config,
+    setup_status,
+    validate_tunnel_id,
     validate_server_name,
 )
 from .gateway import create_gateway
@@ -92,8 +94,8 @@ def command_init(args: argparse.Namespace) -> int:
         current = config["tunnel"].get("tunnel_id", "")
         tunnel_id = input(f"OpenAI tunnel ID [{current or 'not set'}]: ").strip() or current
     if tunnel_id is not None:
-        if tunnel_id and not re.fullmatch(r"tunnel_[0-9a-f]{32}", tunnel_id):
-            raise ValueError("Tunnel ID must be tunnel_ followed by 32 hexadecimal characters")
+        if tunnel_id:
+            validate_tunnel_id(tunnel_id)
         config["tunnel"]["tunnel_id"] = tunnel_id
     save_config(config, path)
     runtime_key = args.runtime_key
@@ -105,6 +107,114 @@ def command_init(args: argparse.Namespace) -> int:
     print(f"Runtime key: {'configured' if get_runtime_key() else 'missing'}")
     print(f"Access mode: {config['access']['mode']}")
     return 0
+
+
+def _prompt_yes_no(prompt: str, *, default: bool = False) -> bool:
+    suffix = "[Y/n]" if default else "[y/N]"
+    while True:
+        value = input(f"{prompt} {suffix}: ").strip().casefold()
+        if not value:
+            return default
+        if value in {"y", "yes"}:
+            return True
+        if value in {"n", "no"}:
+            return False
+        print("Please answer y or n.")
+
+
+def _interactive_setup(path: Path) -> int:
+    if not sys.stdin.isatty():
+        raise RuntimeError(
+            "Interactive setup needs a terminal. Run `ethergpt setup` in a terminal "
+            "or open http://127.0.0.1:8766/ui."
+        )
+
+    config = load_config(path) if path.exists() else default_config()
+    print("\nEtherGPT first-time setup")
+    print("Create the tunnel first: https://platform.openai.com/settings/organization/tunnels")
+    print("The runtime API key below is the tunnel-client key, not a model API key.\n")
+
+    current_name = str(config.get("name", "EtherGPT"))
+    name = input(f"Machine name [{current_name}]: ").strip()
+    if name:
+        config["name"] = name
+
+    current_tunnel = str(config.get("tunnel", {}).get("tunnel_id", ""))
+    while True:
+        tunnel_id = input(
+            f"Tunnel ID [{current_tunnel or 'tunnel_...'}]: "
+        ).strip() or current_tunnel
+        try:
+            validate_tunnel_id(tunnel_id)
+            config["tunnel"]["tunnel_id"] = tunnel_id
+            break
+        except ValueError as exc:
+            print(f"Invalid tunnel ID: {exc}")
+
+    existing_key = bool(get_runtime_key())
+    while True:
+        key_prompt = (
+            "Tunnel runtime API key (leave blank to keep current): "
+            if existing_key
+            else "Tunnel runtime API key: "
+        )
+        runtime_key = getpass.getpass(key_prompt).strip()
+        if runtime_key or existing_key:
+            break
+        print("The tunnel runtime API key is required.")
+
+    current_mode = str(config.get("access", {}).get("mode", "full"))
+    while True:
+        mode = input(f"Access mode: full or scoped [{current_mode}]: ").strip().casefold()
+        mode = mode or current_mode
+        if mode in {"full", "scoped"}:
+            break
+        print("Choose full or scoped.")
+
+    if mode == "full":
+        acknowledged = _prompt_yes_no(
+            "Allow ChatGPT to run commands and read/write the whole host?",
+            default=bool(config["access"].get("acknowledged_full_access", False)),
+        )
+        if not acknowledged:
+            raise RuntimeError("Full access was not acknowledged; setup cancelled")
+        config["access"]["mode"] = "full"
+        config["access"]["acknowledged_full_access"] = True
+        config["access"]["allowed_roots"] = []
+    else:
+        current_roots = ", ".join(config["access"].get("allowed_roots", []))
+        while True:
+            roots_raw = input(
+                f"Allowed folders, comma-separated [{current_roots or '~/Projects'}]: "
+            ).strip() or current_roots
+            roots = [
+                str(Path(item.strip()).expanduser().resolve())
+                for item in roots_raw.split(",")
+                if item.strip()
+            ]
+            if roots:
+                break
+            print("Scoped mode needs at least one allowed folder.")
+        config["access"]["mode"] = "scoped"
+        config["access"]["acknowledged_full_access"] = False
+        config["access"]["allowed_roots"] = roots
+
+    if runtime_key:
+        set_runtime_key(runtime_key)
+    save_config(config, path)
+    print(f"\nSetup complete: {path}")
+    print("EtherGPT will start or refresh the tunnel automatically.")
+    return 0
+
+
+def command_setup(args: argparse.Namespace) -> int:
+    path = _path(args.config)
+    config = load_config(path)
+    state = setup_status(config, runtime_key_configured=bool(get_runtime_key()))
+    if args.if_needed and state["complete"]:
+        print("EtherGPT setup is already complete.")
+        return 0
+    return _interactive_setup(path)
 
 
 def command_serve(args: argparse.Namespace) -> int:
@@ -132,55 +242,68 @@ def _wait_for_gateway(base_url: str, process: subprocess.Popen[Any], timeout: fl
     raise TimeoutError("Gateway did not become ready")
 
 
-def command_run(args: argparse.Namespace) -> int:
-    path = _path(args.config).resolve()
+def _runtime_snapshot(
+    path: Path,
+) -> tuple[dict[str, Any], str | None, dict[str, Any], str]:
     config = load_config(path)
-    if config["access"].get("mode") == "full" and not config["access"].get(
-        "acknowledged_full_access", False
-    ):
-        raise PermissionError(
-            "Full access must be explicitly acknowledged: "
-            "ethergpt init --i-understand-full-access"
-        )
-    tunnel = config["tunnel"]
-    tunnel_id = tunnel.get("tunnel_id", "")
-    if not tunnel_id:
-        raise RuntimeError("Tunnel ID is missing; run ethergpt init")
     runtime_key = get_runtime_key()
-    if not runtime_key:
-        raise RuntimeError("Runtime API key is missing; run ethergpt init --ask-key")
-    binary_raw = str(tunnel.get("binary", "tunnel-client"))
-    binary = shutil.which(binary_raw) or str(Path(binary_raw).expanduser())
-    if not Path(binary).is_file():
-        raise FileNotFoundError(f"tunnel-client not found: {binary_raw}")
-
-    gateway_process = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "ethergpt.cli",
-            "--config",
-            str(path),
-            "serve",
-            "--no-banner",
-        ]
+    state = setup_status(config, runtime_key_configured=bool(runtime_key))
+    digest = hashlib.sha256()
+    controller_config = {
+        key: config.get(key)
+        for key in ("version", "name", "access", "gateway", "tunnel")
+    }
+    digest.update(
+        json.dumps(controller_config, sort_keys=True, separators=(",", ":")).encode()
     )
+    digest.update(b"\0")
+    digest.update((runtime_key or "").encode())
+    return config, runtime_key, state, digest.hexdigest()
+
+
+def command_run(args: argparse.Namespace) -> int:
+    """Keep the local setup dashboard alive and attach the tunnel when configured."""
+    path = _path(args.config).resolve()
+    gateway_process: subprocess.Popen[Any] | None = None
     tunnel_process: subprocess.Popen[Any] | None = None
+    stopping = False
 
-    def stop_children(signum: int | None = None, frame: Any = None) -> None:
-        for child in (tunnel_process, gateway_process):
-            if child is not None and child.poll() is None:
-                child.terminate()
+    def stop_process(child: subprocess.Popen[Any] | None) -> None:
+        if child is None or child.poll() is not None:
+            return
+        child.terminate()
+        try:
+            child.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            child.wait(timeout=3)
 
-    signal.signal(signal.SIGTERM, stop_children)
-    signal.signal(signal.SIGINT, stop_children)
+    def start_gateway(config: dict[str, Any]) -> subprocess.Popen[Any]:
+        child = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "ethergpt.cli",
+                "--config",
+                str(path),
+                "serve",
+                "--no-banner",
+            ]
+        )
+        _wait_for_gateway(_gateway_base(config), child)
+        return child
 
-    try:
+    def start_tunnel(config: dict[str, Any], runtime_key: str) -> subprocess.Popen[Any]:
+        tunnel = config["tunnel"]
+        tunnel_id = validate_tunnel_id(str(tunnel.get("tunnel_id", "")))
+        binary_raw = str(tunnel.get("binary", "tunnel-client"))
+        binary = shutil.which(binary_raw) or str(Path(binary_raw).expanduser())
+        if not Path(binary).is_file():
+            raise FileNotFoundError(f"tunnel-client not found: {binary_raw}")
         base = _gateway_base(config)
-        _wait_for_gateway(base, gateway_process)
         environment = os.environ.copy()
         environment["CONTROL_PLANE_API_KEY"] = runtime_key
-        tunnel_process = subprocess.Popen(
+        return subprocess.Popen(
             [
                 binary,
                 "run",
@@ -194,25 +317,66 @@ def command_run(args: argparse.Namespace) -> int:
             ],
             env=environment,
         )
-        while True:
-            gateway_code = gateway_process.poll()
-            tunnel_code = tunnel_process.poll()
-            if gateway_code is not None or tunnel_code is not None:
-                return gateway_code if gateway_code is not None else int(tunnel_code or 0)
-            time.sleep(0.5)
-    finally:
-        stop_children()
+
+    def request_stop(signum: int | None = None, frame: Any = None) -> None:
+        nonlocal stopping
+        stopping = True
         for child in (tunnel_process, gateway_process):
-            if child is not None:
-                try:
-                    child.wait(timeout=8)
-                except subprocess.TimeoutExpired:
-                    child.kill()
+            if child is not None and child.poll() is None:
+                child.terminate()
+
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
+
+    try:
+        config, runtime_key, state, fingerprint = _runtime_snapshot(path)
+        observed_mtime = path.stat().st_mtime_ns if path.exists() else 0
+        gateway_process = start_gateway(config)
+        if state["complete"] and runtime_key:
+            tunnel_process = start_tunnel(config, runtime_key)
+
+        while not stopping:
+            gateway_code = gateway_process.poll()
+            if gateway_code is not None:
+                return int(gateway_code or 0)
+            if tunnel_process is not None:
+                tunnel_code = tunnel_process.poll()
+                if tunnel_code is not None:
+                    return int(tunnel_code or 0)
+
+            time.sleep(0.5)
+            current_mtime = path.stat().st_mtime_ns if path.exists() else 0
+            if current_mtime == observed_mtime:
+                continue
+            observed_mtime = current_mtime
+            current_config, current_key, current_state, current_fingerprint = (
+                _runtime_snapshot(path)
+            )
+            if current_fingerprint == fingerprint:
+                continue
+
+            stop_process(tunnel_process)
+            tunnel_process = None
+            stop_process(gateway_process)
+            config = current_config
+            runtime_key = current_key
+            state = current_state
+            fingerprint = current_fingerprint
+            gateway_process = start_gateway(config)
+            if state["complete"] and runtime_key:
+                tunnel_process = start_tunnel(config, runtime_key)
+        return 0
+    finally:
+        stop_process(tunnel_process)
+        stop_process(gateway_process)
 
 
 def command_status(args: argparse.Namespace) -> int:
     path = _path(args.config)
     config = load_config(path)
+    current_setup = setup_status(
+        config, runtime_key_configured=bool(get_runtime_key())
+    )
     gateway = _http_json(f"{_gateway_base(config)}/api/status")
     tunnel = config["tunnel"]
     tunnel_base = f"http://{tunnel['health_host']}:{tunnel['health_port']}"
@@ -224,6 +388,7 @@ def command_status(args: argparse.Namespace) -> int:
             "ui": f"{tunnel_base}/ui",
         },
         "gateway_ui": f"{_gateway_base(config)}/ui",
+        "setup": current_setup,
     }
     if args.json:
         _print_json(payload)
@@ -232,11 +397,20 @@ def command_status(args: argparse.Namespace) -> int:
         tunnel_state = payload["tunnel"]["ready"].get("status", "not_ready")
         print(f"Gateway: {gateway_state}  {_gateway_base(config)}")
         print(f"Tunnel:  {tunnel_state}  {tunnel_base}")
+        if not current_setup["complete"]:
+            print(f"Setup:   REQUIRED ({', '.join(current_setup['missing'])})")
+            print(f"         Run `ethergpt setup` or open {_gateway_base(config)}/ui")
         print(f"MCPs:    {len(config.get('servers', {}))} registered")
         for name, server in config.get("servers", {}).items():
             state = "enabled" if server.get("enabled", True) else "disabled"
             print(f"  - {name}: {state}, {server['type']}, {server.get('expose', 'dynamic')}")
-    return 0 if gateway and payload["tunnel"]["health"].get("status") != "offline" else 1
+    return (
+        0
+        if current_setup["complete"]
+        and gateway
+        and payload["tunnel"]["health"].get("status") != "offline"
+        else 1
+    )
 
 
 def command_doctor(args: argparse.Namespace) -> int:
@@ -409,6 +583,13 @@ def command_update() -> int:
 
 def command_power(path: Path, turn_on: bool) -> int:
     """Persistently turn the installed EtherGPT experience on or off."""
+    if turn_on and sys.stdin.isatty():
+        config = load_config(path)
+        state = setup_status(config, runtime_key_configured=bool(get_runtime_key()))
+        if not state["complete"]:
+            print("EtherGPT needs setup before the tunnel can connect.")
+            _interactive_setup(path)
+
     system = platform.system()
     if system == "Darwin":
         menu_service = f"gui/{os.getuid()}/org.ethergpt.menu"
@@ -535,6 +716,15 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("off", help="Stop now and stay off after login or boot")
     subparsers.add_parser("update", help="Check origin/main and install an available update")
 
+    setup = subparsers.add_parser(
+        "setup", help="Configure the tunnel, runtime API key and host access"
+    )
+    setup.add_argument(
+        "--if-needed",
+        action="store_true",
+        help="Exit without prompting when setup is already complete",
+    )
+
     init = subparsers.add_parser("init", help="Create configuration and store tunnel credentials")
     init.add_argument("--name")
     init.add_argument("--tunnel-id")
@@ -608,6 +798,8 @@ def main() -> int:
             return command_power(_path(args.config), False)
         if args.action == "update":
             return command_update()
+        if args.action == "setup":
+            return command_setup(args)
         if args.action == "init":
             return command_init(args)
         if args.action == "serve":

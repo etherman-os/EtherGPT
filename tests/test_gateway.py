@@ -3,8 +3,10 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 from mcp.types import ImageContent
+from starlette.testclient import TestClient
 
-from ethergpt.config import default_config, save_config
+from ethergpt import gateway as gateway_module
+from ethergpt.config import default_config, load_config, save_config
 from ethergpt.gateway import DASHBOARD_HTML, create_gateway
 
 
@@ -95,6 +97,21 @@ async def test_host_exec(configured_gateway) -> None:
         assert result.data["stdout"] == "gateway-ok"
 
 
+async def test_scoped_mode_blocks_arbitrary_shell(tmp_path: Path) -> None:
+    config = default_config()
+    config["access"]["mode"] = "scoped"
+    config["access"]["acknowledged_full_access"] = False
+    config["access"]["allowed_roots"] = [str(tmp_path)]
+    path = tmp_path / "config.json"
+    save_config(config, path)
+    async with Client(create_gateway(path)) as client:
+        result = await client.call_tool(
+            "host_exec", {"command": "pwd"}, raise_on_error=False
+        )
+    assert result.is_error is True
+    assert "disabled in scoped mode" in str(result.content)
+
+
 async def test_host_write_and_replace(configured_gateway, tmp_path: Path) -> None:
     target = tmp_path / "hello.txt"
     async with Client(configured_gateway) as client:
@@ -135,6 +152,47 @@ async def test_probe_updates_runtime_status(configured_gateway) -> None:
 def test_dashboard_uses_enabled_disabled_toggle() -> None:
     assert "enabledLabel = server.enabled ? 'Enabled' : 'Disabled'" in DASHBOARD_HTML
     assert ">Probe</button>" not in DASHBOARD_HTML
+    assert "Setup required — press here" in DASHBOARD_HTML
+    assert "Tunnel runtime API key" in DASHBOARD_HTML
+    assert "fetch('/api/setup'" in DASHBOARD_HTML
+
+
+def test_dashboard_setup_saves_connection_without_exposing_key(
+    monkeypatch, tmp_path: Path
+) -> None:
+    key_store = {"value": None}
+    monkeypatch.setattr(gateway_module, "get_runtime_key", lambda: key_store["value"])
+    monkeypatch.setattr(
+        gateway_module,
+        "set_runtime_key",
+        lambda value: key_store.__setitem__("value", value),
+    )
+    path = tmp_path / "config.json"
+    save_config(default_config(), path)
+    app = create_gateway(path).http_app()
+
+    with TestClient(app) as client:
+        before = client.get("/readyz")
+        assert before.json()["status"] == "setup_required"
+        response = client.post(
+            "/api/setup",
+            json={
+                "name": "My Test Mac",
+                "tunnel_id": "tunnel_" + "b" * 32,
+                "runtime_key": "secret-runtime-key",
+                "access_mode": "full",
+                "acknowledge_full_access": True,
+            },
+        )
+        status = client.get("/api/status").json()
+
+    assert response.status_code == 200
+    assert response.json()["setup"]["complete"] is True
+    assert "secret-runtime-key" not in response.text
+    assert status["setup_complete"] is True
+    assert status["setup"]["runtime_key_configured"] is True
+    assert load_config(path)["access"]["acknowledged_full_access"] is True
+    assert key_store["value"] == "secret-runtime-key"
 
 
 async def test_direct_child_tools_are_namespaced(tmp_path: Path) -> None:

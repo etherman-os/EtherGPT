@@ -45,7 +45,13 @@ if [[ "$(uname -s)" == "Darwin" && "${ETHERGPT_SKIP_MENU:-0}" != "1" ]]; then
 fi
 
 echo
+if [[ -t 0 && "${ETHERGPT_SKIP_SETUP:-0}" != "1" ]]; then
+  "$ROOT_DIR/.venv/bin/ethergpt" setup --if-needed
+else
+  echo "Setup required: run 'ethergpt setup' in a terminal or start EtherGPT and open its local dashboard."
+fi
+
+echo
 echo "Next:"
-echo "  ethergpt init --tunnel-id tunnel_... --ask-key --i-understand-full-access"
+echo "  ethergpt        # prompts for missing setup, then starts persistently"
 echo "  ethergpt doctor"
-echo "  ethergpt"

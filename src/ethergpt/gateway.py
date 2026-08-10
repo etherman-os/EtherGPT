@@ -22,9 +22,12 @@ from .config import (
     public_config,
     save_config,
     server_mcp_config,
+    setup_status,
+    validate_tunnel_id,
     validate_server_name,
 )
 from .host_tools import register_host_tools
+from .secrets import get_runtime_key, set_runtime_key
 
 
 DASHBOARD_HTML = """<!doctype html>
@@ -35,56 +38,149 @@ DASHBOARD_HTML = """<!doctype html>
   <title>EtherGPT</title>
   <style>
     :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
     body { margin: 0; background: #0a0d12; color: #e9eef8; }
-    main { max-width: 980px; margin: 0 auto; padding: 40px 22px; }
+    main { max-width: 980px; margin: 0 auto; padding: 40px 22px 70px; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
     h1 { margin: 0; font-size: 30px; }
-    .sub { color: #8f9bad; margin: 8px 0 28px; }
-    .top, .server { background: #121821; border: 1px solid #253044; border-radius: 14px; }
+    h2 { margin: 30px 0 12px; font-size: 18px; }
+    .sub, .help { color: #8f9bad; }
+    .sub { margin: 8px 0 28px; }
+    .help { font-size: 13px; line-height: 1.5; }
+    a { color: #9db9ff; }
+    .top, .server, details, .setup-banner { background: #121821; border: 1px solid #253044; border-radius: 14px; }
     .top { padding: 20px; display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; }
     .metric { background: #0d121a; border-radius: 10px; padding: 14px; }
     .label { color: #8490a3; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
-    .value { margin-top: 7px; font-size: 18px; font-weight: 650; }
+    .value { margin-top: 7px; font-size: 18px; font-weight: 650; overflow-wrap: anywhere; }
     .ok { color: #43d18b; } .off { color: #f1b84b; } .bad { color: #ff6b72; }
-    h2 { margin: 30px 0 12px; font-size: 18px; }
+    .setup-banner { padding: 18px 20px; margin-bottom: 18px; border-color: #9a6b20; background: #241c10; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .setup-banner strong { display: block; color: #ffd18a; margin-bottom: 5px; }
+    .hidden { display: none !important; }
+    details { margin: 18px 0 0; overflow: hidden; }
+    summary { cursor: pointer; padding: 16px 18px; font-weight: 650; }
+    .config-body { padding: 0 18px 20px; border-top: 1px solid #253044; }
+    .config-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin-top: 18px; }
+    .field { display: grid; gap: 7px; }
+    .field.wide { grid-column: 1 / -1; }
+    .field label { color: #c6d1e3; font-size: 13px; font-weight: 600; }
+    input, select, textarea { width: 100%; color: #e9eef8; background: #0d121a; border: 1px solid #35445b; border-radius: 8px; padding: 10px; }
+    textarea { min-height: 76px; resize: vertical; }
+    .check { display: flex; gap: 10px; align-items: flex-start; color: #c6d1e3; font-size: 13px; line-height: 1.4; }
+    .check input { width: auto; margin-top: 3px; }
+    .form-result { min-height: 20px; margin-top: 12px; font-size: 13px; }
     #servers { display: grid; gap: 10px; }
-    .server { padding: 15px 17px; display: flex; justify-content: space-between; align-items: center; }
+    .server { padding: 15px 17px; display: flex; justify-content: space-between; align-items: center; gap: 15px; }
     .name { font-weight: 650; } .details { color: #8f9bad; font-size: 13px; margin-top: 4px; }
-    .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .pill, button { border-radius: 99px; background: #202a38; padding: 6px 10px; font-size: 12px; }
+    .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .pill, button { border-radius: 99px; background: #202a38; padding: 7px 11px; font-size: 12px; }
     button { color: #dfe8f8; border: 1px solid #35445b; cursor: pointer; }
     button:hover { border-color: #6d86ad; }
+    button.primary { background: #315fcc; border-color: #5680e5; color: white; }
     button.enabled { color: #43d18b; border-color: #287a58; background: #142b24; }
     button.disabled { color: #aeb8c8; border-color: #445066; background: #1a202b; }
     .danger { color: #ff9298; }
-    form { margin-top: 14px; display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; }
-    input, select { color: #e9eef8; background: #0d121a; border: 1px solid #35445b; border-radius: 8px; padding: 9px; }
+    #add-http { margin-top: 14px; display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; }
     code { color: #b8c7e8; }
+    @media (max-width: 700px) {
+      header, .setup-banner, .server { align-items: stretch; flex-direction: column; }
+      .config-grid, #add-http { grid-template-columns: 1fr; }
+      .field.wide { grid-column: auto; }
+      .actions { justify-content: flex-start; }
+    }
   </style>
 </head>
 <body><main>
-  <h1>EtherGPT</h1>
-  <p class="sub">One private ChatGPT connection for this machine and all of its MCP servers.</p>
+  <header>
+    <div><h1>EtherGPT</h1><p class="sub">One private ChatGPT connection for this machine and all of its MCP servers.</p></div>
+    <button id="config-button">Config &amp; setup</button>
+  </header>
+
+  <section class="setup-banner hidden" id="setup-banner">
+    <div><strong>Setup required</strong><span id="setup-missing">Add your tunnel details to connect ChatGPT.</span></div>
+    <button class="primary" onclick="openSetup()">Set up now</button>
+  </section>
+
   <section class="top" id="summary"><div class="metric">Loading…</div></section>
+
+  <details id="config-panel">
+    <summary>Connection and host access</summary>
+    <div class="config-body">
+      <p class="help">Create a tunnel in <a href="https://platform.openai.com/settings/organization/tunnels" target="_blank" rel="noreferrer">OpenAI Platform tunnel settings</a>. Use its <code>tunnel_id</code> and the runtime API key created for <code>tunnel-client</code>; this is not a normal model API key.</p>
+      <form id="setup-form">
+        <div class="config-grid">
+          <div class="field"><label for="machine-name">Machine name</label><input id="machine-name" name="name" required maxlength="128"></div>
+          <div class="field"><label for="access-mode">Host access</label><select id="access-mode" name="access_mode"><option value="full">Full host access</option><option value="scoped">Selected folders only</option></select></div>
+          <div class="field"><label for="tunnel-id">Tunnel ID</label><input id="tunnel-id" name="tunnel_id" autocomplete="off" placeholder="tunnel_…"></div>
+          <div class="field"><label for="runtime-key">Tunnel runtime API key</label><input id="runtime-key" name="runtime_key" type="password" autocomplete="new-password" placeholder="Paste runtime key"></div>
+          <div class="field wide hidden" id="roots-field"><label for="allowed-roots">Allowed folders</label><textarea id="allowed-roots" name="allowed_roots" placeholder="~/Projects, ~/Documents"></textarea></div>
+          <label class="check field wide" id="full-access-field"><input id="full-access" name="acknowledge_full_access" type="checkbox"><span>I understand that ChatGPT can run commands and read, create, change, or delete files anywhere on this host.</span></label>
+        </div>
+        <p class="help">Leaving an already configured tunnel ID or runtime key blank keeps its current value. Saving restarts the local gateway and tunnel automatically.</p>
+        <button class="primary" id="save-setup" type="submit">Save connection</button>
+        <div class="form-result" id="setup-result"></div>
+      </form>
+    </div>
+  </details>
+
   <h2>MCP registry</h2><section id="servers"></section>
   <form id="add-http"><input name="name" placeholder="MCP name" required><input name="url" placeholder="https://…/mcp" required><button>Add HTTP MCP</button></form>
 </main>
 <script>
+let formInitialized = false;
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
+}
+function openSetup() {
+  const panel = document.querySelector('#config-panel');
+  panel.open = true;
+  panel.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function syncAccessFields() {
+  const scoped = document.querySelector('#access-mode').value === 'scoped';
+  document.querySelector('#roots-field').classList.toggle('hidden', !scoped);
+  document.querySelector('#full-access-field').classList.toggle('hidden', scoped);
+}
 async function refresh() {
-  const response = await fetch('/api/status');
-  const data = await response.json();
-  document.querySelector('#summary').innerHTML = `
-    <div class="metric"><div class="label">Gateway</div><div class="value ok">Live</div></div>
-    <div class="metric"><div class="label">Host</div><div class="value">${data.hostname}</div></div>
-    <div class="metric"><div class="label">Access</div><div class="value">${data.access_mode}</div></div>
-    <div class="metric"><div class="label">Registered MCPs</div><div class="value">${data.server_count}</div></div>`;
-  const rows = Object.entries(data.servers).map(([name, server]) => {
-    const healthClass = server.runtime_status === 'connected' ? 'ok' : (server.runtime_status === 'failed' ? 'bad' : 'off');
-    const state = server.enabled ? server.runtime_status : 'disabled';
-    const enabledLabel = server.enabled ? 'Enabled' : 'Disabled';
-    const enabledClass = server.enabled ? 'enabled' : 'disabled';
-    return `<div class="server"><div><div class="name">${name}</div><div class="details">${server.type} · ${server.expose} · ${server.tool_count ?? 0} tools</div></div><div class="actions"><button class="${enabledClass}" onclick="setEnabled('${name}', ${!server.enabled})">${enabledLabel}</button><button class="danger" onclick="removeServer('${name}')">Remove</button><div class="pill ${healthClass}">${state}</div></div></div>`;
-  });
-  document.querySelector('#servers').innerHTML = rows.join('') || '<div class="server">No MCP servers registered yet.</div>';
+  try {
+    const response = await fetch('/api/status');
+    const data = await response.json();
+    const setupRequired = !data.setup_complete;
+    document.querySelector('#setup-banner').classList.toggle('hidden', !setupRequired);
+    document.querySelector('#setup-missing').textContent = setupRequired
+      ? `Missing: ${data.setup.missing.join(', ').replaceAll('_', ' ')}`
+      : 'Connection configured.';
+    document.querySelector('#config-button').textContent = setupRequired ? 'Setup required — press here' : 'Config & setup';
+    if (setupRequired) document.querySelector('#config-panel').open = true;
+    document.querySelector('#summary').innerHTML = `
+      <div class="metric"><div class="label">Gateway</div><div class="value ok">Live</div></div>
+      <div class="metric"><div class="label">Connection</div><div class="value ${setupRequired ? 'off' : 'ok'}">${setupRequired ? 'Setup required' : 'Configured'}</div></div>
+      <div class="metric"><div class="label">Host</div><div class="value">${escapeHtml(data.hostname)}</div></div>
+      <div class="metric"><div class="label">Access</div><div class="value">${escapeHtml(data.access_mode)}</div></div>
+      <div class="metric"><div class="label">Registered MCPs</div><div class="value">${data.server_count}</div></div>`;
+
+    if (!formInitialized) {
+      document.querySelector('#machine-name').value = data.config.name || '';
+      document.querySelector('#access-mode').value = data.config.access.mode || 'full';
+      document.querySelector('#allowed-roots').value = (data.config.access.allowed_roots || []).join(', ');
+      document.querySelector('#full-access').checked = Boolean(data.config.access.acknowledged_full_access);
+      document.querySelector('#tunnel-id').placeholder = data.setup.tunnel_id_configured ? `${data.config.tunnel.tunnel_id} (leave blank to keep)` : 'tunnel_…';
+      document.querySelector('#runtime-key').placeholder = data.setup.runtime_key_configured ? 'Configured — leave blank to keep' : 'Paste runtime key';
+      syncAccessFields();
+      formInitialized = true;
+    }
+
+    const rows = Object.entries(data.servers).map(([name, server]) => {
+      const healthClass = server.runtime_status === 'connected' ? 'ok' : (server.runtime_status === 'failed' ? 'bad' : 'off');
+      const state = server.enabled ? server.runtime_status : 'disabled';
+      const enabledLabel = server.enabled ? 'Enabled' : 'Disabled';
+      const enabledClass = server.enabled ? 'enabled' : 'disabled';
+      return `<div class="server"><div><div class="name">${escapeHtml(name)}</div><div class="details">${escapeHtml(server.type)} · ${escapeHtml(server.expose)} · ${server.tool_count ?? 0} tools</div></div><div class="actions"><button class="${enabledClass}" onclick="setEnabled('${name}', ${!server.enabled})">${enabledLabel}</button><button class="danger" onclick="removeServer('${name}')">Remove</button><div class="pill ${healthClass}">${escapeHtml(state)}</div></div></div>`;
+    });
+    document.querySelector('#servers').innerHTML = rows.join('') || '<div class="server">No MCP servers registered yet.</div>';
+  } catch (error) {
+    document.querySelector('#setup-result').textContent = 'Gateway is refreshing…';
+  }
 }
 async function setEnabled(name, enabled) {
   await fetch('/api/server/enabled', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({name, enabled})});
@@ -95,6 +191,34 @@ async function removeServer(name) {
   await fetch('/api/server/remove', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({name})});
   await refresh();
 }
+document.querySelector('#config-button').addEventListener('click', openSetup);
+document.querySelector('#access-mode').addEventListener('change', syncAccessFields);
+document.querySelector('#setup-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = document.querySelector('#save-setup');
+  const result = document.querySelector('#setup-result');
+  button.disabled = true;
+  result.className = 'form-result';
+  result.textContent = 'Saving securely…';
+  const values = Object.fromEntries(new FormData(event.target));
+  values.acknowledge_full_access = document.querySelector('#full-access').checked;
+  try {
+    const response = await fetch('/api/setup', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(values)});
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Could not save setup');
+    result.className = 'form-result ok';
+    result.textContent = 'Saved. Gateway and tunnel are refreshing…';
+    document.querySelector('#runtime-key').value = '';
+    document.querySelector('#tunnel-id').value = '';
+    formInitialized = false;
+    setTimeout(refresh, 1200);
+  } catch (error) {
+    result.className = 'form-result bad';
+    result.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
 document.querySelector('#add-http').addEventListener('submit', async event => {
   event.preventDefault();
   const values = Object.fromEntries(new FormData(event.target));
@@ -136,10 +260,13 @@ def _status_snapshot(
     config: dict[str, Any], runtime_states: dict[str, dict[str, Any]] | None = None
 ) -> dict[str, Any]:
     runtime_states = runtime_states or {}
+    setup = setup_status(config, runtime_key_configured=bool(get_runtime_key()))
     return {
         "ok": True,
         "service": "ethergpt",
         "version": __version__,
+        "setup_complete": setup["complete"],
+        "setup": setup,
         "hostname": __import__("platform").node(),
         "name": config.get("name"),
         "access_mode": config.get("access", {}).get("mode"),
@@ -577,7 +704,9 @@ def create_gateway(config_path: Path | None = None) -> FastMCP:
     async def readyz(request: Request) -> JSONResponse:
         try:
             current = load_config(path)
-            return JSONResponse({"status": "ready", **_status_snapshot(current)})
+            snapshot = _status_snapshot(current)
+            status = "ready" if snapshot["setup_complete"] else "setup_required"
+            return JSONResponse({"status": status, **snapshot})
         except Exception as exc:
             return JSONResponse(
                 {"status": "not_ready", "error": f"{type(exc).__name__}: {exc}"}, status_code=503
@@ -589,6 +718,71 @@ def create_gateway(config_path: Path | None = None) -> FastMCP:
         return JSONResponse(
             {**_status_snapshot(current, runtime_states), "config": public_config(current)}
         )
+
+    @mcp.custom_route("/api/setup", methods=["POST"])
+    async def api_setup(request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+            current = load_config(path)
+
+            name = str(payload.get("name", current.get("name", "EtherGPT"))).strip()
+            if not name or len(name) > 128:
+                raise ValueError("Machine name must be 1-128 characters")
+            current["name"] = name
+
+            submitted_tunnel = str(payload.get("tunnel_id", "")).strip()
+            tunnel_id = submitted_tunnel or str(
+                current.get("tunnel", {}).get("tunnel_id", "")
+            )
+            current["tunnel"]["tunnel_id"] = validate_tunnel_id(tunnel_id)
+
+            runtime_key = str(payload.get("runtime_key", "")).strip()
+            if not runtime_key and not get_runtime_key():
+                raise ValueError("Tunnel runtime API key is required")
+
+            mode = str(payload.get("access_mode", "full")).strip().casefold()
+            if mode == "full":
+                if payload.get("acknowledge_full_access") is not True:
+                    raise ValueError("Full host access must be explicitly acknowledged")
+                current["access"]["mode"] = "full"
+                current["access"]["acknowledged_full_access"] = True
+                current["access"]["allowed_roots"] = []
+            elif mode == "scoped":
+                raw_roots = payload.get("allowed_roots", [])
+                if isinstance(raw_roots, str):
+                    raw_roots = raw_roots.replace("\n", ",").split(",")
+                if not isinstance(raw_roots, list):
+                    raise ValueError("Allowed folders must be a list")
+                roots = [
+                    str(Path(str(root).strip()).expanduser().resolve())
+                    for root in raw_roots
+                    if str(root).strip()
+                ]
+                if not roots:
+                    raise ValueError("Scoped access needs at least one allowed folder")
+                current["access"]["mode"] = "scoped"
+                current["access"]["acknowledged_full_access"] = False
+                current["access"]["allowed_roots"] = roots
+            else:
+                raise ValueError("Access mode must be full or scoped")
+
+            if runtime_key:
+                set_runtime_key(runtime_key)
+            save_config(current, path)
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "setup": setup_status(
+                        current, runtime_key_configured=bool(get_runtime_key())
+                    ),
+                    "config": public_config(current),
+                    "restart_pending": True,
+                }
+            )
+        except Exception as exc:
+            return JSONResponse(
+                {"error": f"{type(exc).__name__}: {exc}"}, status_code=400
+            )
 
     @mcp.custom_route("/api/probe", methods=["POST"])
     async def api_probe(request: Request) -> JSONResponse:

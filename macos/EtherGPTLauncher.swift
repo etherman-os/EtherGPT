@@ -67,4 +67,22 @@ if !loaded {
     if bootstrapped.status != 0 { fail("Could not load EtherGPT menu", bootstrapped) }
 }
 
+func setupRequired() -> Bool? {
+    guard let url = URL(string: "http://127.0.0.1:8766/api/status"),
+          let data = try? Data(contentsOf: url),
+          let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let complete = payload["setup_complete"] as? Bool else { return nil }
+    return !complete
+}
+
+for _ in 0..<40 {
+    if let required = setupRequired() {
+        if required {
+            NSWorkspace.shared.open(URL(string: "http://127.0.0.1:8766/ui")!)
+        }
+        break
+    }
+    Thread.sleep(forTimeInterval: 0.25)
+}
+
 exit(0)

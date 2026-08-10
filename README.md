@@ -75,23 +75,32 @@ cd EtherGPT
 
 The installer downloads the matching official `tunnel-client` release and verifies its published SHA-256 checksum when the binary is not already installed. On macOS it also installs the health menu-bar app. Set `ETHERGPT_SKIP_TUNNEL_INSTALL=1` or `ETHERGPT_SKIP_MENU=1` to manage either component yourself.
 
-Make sure `~/.local/bin` is on `PATH`, then initialize full access:
+When installation runs in a terminal, the first-time wizard opens automatically.
+If it was installed non-interactively, run:
 
 ```bash
-ethergpt init \
-  --tunnel-id 'tunnel_<32-lowercase-hex-characters>' \
-  --ask-key \
-  --i-understand-full-access
+ethergpt setup
 ```
 
-The runtime key is stored in macOS Keychain. On Linux it is stored in a mode-`0600` file under `~/.config/ethergpt/` unless `CONTROL_PLANE_API_KEY` is provided by the service environment.
+The wizard asks for the machine name, `tunnel_id`, tunnel runtime API key, and
+full or scoped host access. The runtime key is stored in macOS Keychain. On
+Linux it is stored in a mode-`0600` file under `~/.config/ethergpt/` unless
+`CONTROL_PLANE_API_KEY` is provided by the service environment. It is never
+returned by the dashboard API. Scoped mode limits file tools to the selected
+folders and disables arbitrary shell/background commands; full mode enables the
+intentionally unrestricted development workflow.
 
-Run it in the foreground first:
+Then start persistently:
 
 ```bash
 ethergpt doctor
-ethergpt run
+ethergpt
 ```
+
+Bare `ethergpt` also launches the terminal wizard automatically when setup is
+missing. A non-interactive/macOS app start keeps the local gateway alive without
+opening the OpenAI tunnel and opens the setup dashboard instead. Saving setup
+starts the tunnel automatically.
 
 Then create or edit one ChatGPT Web plugin:
 
@@ -146,6 +155,8 @@ ethergpt
 ```
 
 The launcher re-enables auto-start and starts the gateway, tunnel, and menu icon.
+If setup is incomplete, it opens the local setup page and the menu displays
+**EtherGPT SETUP** with **Setup required — Open Dashboard…**.
 Use **Check & Install Update…** in the macOS menu or run `ethergpt update` on
 macOS/Linux. The updater refuses to overwrite a Git checkout with local changes.
 
@@ -159,12 +170,9 @@ menu-bar app and Spotlight launcher:
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/etherman-os/EtherGPT/main/scripts/brew-setup.sh)"
 ```
 
-Then initialize the tunnel once and start EtherGPT:
-
-```bash
-ethergpt init --tunnel-id tunnel_... --ask-key --i-understand-full-access
-ethergpt
-```
+The script launches EtherGPT when installation finishes. If connection details
+are missing, the setup dashboard opens automatically; terminal users can always
+run `ethergpt setup`.
 
 The same script can also be run as `./scripts/brew-setup.sh` from a cloned repo.
 A signed Homebrew cask can be added after the first packaged macOS release.
@@ -181,7 +189,7 @@ Linux/VPS system service with root-level host permissions:
 
 ```bash
 sudo ./install.sh --system
-sudo ethergpt init --tunnel-id tunnel_... --ask-key --i-understand-full-access
+sudo ethergpt setup
 sudo ethergpt service install --scope system
 ```
 
@@ -192,6 +200,18 @@ Only use the system/root mode on a VPS intentionally dedicated to this trust mod
 ### Add an MCP from the dashboard
 
 Open `http://127.0.0.1:8766/ui` or choose **Open Dashboard** from the macOS menu-bar app. The form at the bottom adds a remote Streamable HTTP MCP. Enter a short unique name and its full `/mcp` URL. Each registry row has an **Enabled / Disabled** toggle; the separate status pill reports the most recent connection check.
+
+The dashboard's **Config & setup** section also lets you add or replace the
+tunnel ID and runtime API key, rename the machine, or switch between full and
+scoped host access. Leave an already configured credential field blank to keep
+its current value. Saving restarts the local gateway/tunnel automatically.
+
+For scripts and automation, the original non-interactive command remains
+available:
+
+```bash
+ethergpt init --tunnel-id tunnel_... --ask-key --i-understand-full-access
+```
 
 STDIO MCPs launch local commands and therefore must be added from the CLI or through ChatGPT's `mcp_add_stdio` tool.
 

@@ -151,7 +151,32 @@ for initialization so configuration and credentials belong to root.
 
 ## 4. Initialize and start
 
-Full access (intentional whole-account control):
+The interactive wizard is the recommended path on macOS, Linux desktops, and
+VPS hosts:
+
+```bash
+ethergpt setup
+```
+
+It asks for the machine name, tunnel ID, tunnel runtime API key, and either full
+or scoped access. The runtime key prompt is hidden. Full access requires an
+explicit confirmation. Scoped mode keeps file tools inside the selected roots
+and disables arbitrary shell/background commands. After setup, validate and
+start persistently:
+
+```bash
+ethergpt doctor
+ethergpt
+ethergpt status
+```
+
+If setup is missing, bare `ethergpt` starts the wizard automatically in an
+interactive terminal. When launched from the macOS app or another
+non-interactive service, EtherGPT starts a loopback-only setup gateway, leaves
+the OpenAI tunnel disconnected, and opens the dashboard. Saving the form starts
+the tunnel automatically.
+
+Advanced/non-interactive full-access setup:
 
 ```bash
 ethergpt init \
@@ -169,14 +194,6 @@ ethergpt init \
   --ask-key \
   --scoped-root "$HOME/Projects" \
   --scoped-root "$HOME/Documents"
-```
-
-Validate and start persistently:
-
-```bash
-ethergpt doctor
-ethergpt       # enable auto-start and start now
-ethergpt status
 ```
 
 Power commands are the same on macOS and Linux:
@@ -221,7 +238,11 @@ Refresh because the stable dispatcher tools stay unchanged.
 ### Dashboard
 
 Open [http://127.0.0.1:8766/ui](http://127.0.0.1:8766/ui), run `ethergpt ui`, or
-use **Open Dashboard** on macOS. The dashboard can add Streamable HTTP MCPs.
+use **Open Dashboard** on macOS. Missing connection details open this page as a
+first-time setup wizard. Later, expand **Config & setup** to change the machine
+name, tunnel ID, runtime API key, or host access mode. Blank configured
+credential fields keep their existing values. The dashboard can also add
+Streamable HTTP MCPs.
 Each row has an **Enabled / Disabled** control and a separate health pill.
 
 ### Local STDIO MCP
