@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from fastmcp import Client, FastMCP
 from fastmcp.server import create_proxy
+from fastmcp.tools import ToolResult
 from mcp.types import ToolAnnotations
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
@@ -113,14 +114,14 @@ def _tool_to_dict(tool: Any) -> dict[str, Any]:
     return payload
 
 
-def _result_to_dict(result: Any) -> dict[str, Any]:
+def _result_to_dict(result: Any, *, include_content: bool = True) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     if getattr(result, "data", None) is not None:
         payload["data"] = result.data
     if getattr(result, "structured_content", None) is not None:
         payload["structured_content"] = result.structured_content
     content = getattr(result, "content", None)
-    if content is not None:
+    if include_content and content is not None:
         payload["content"] = [
             item.model_dump(mode="json", exclude_none=True)
             if hasattr(item, "model_dump")
@@ -394,7 +395,7 @@ def create_gateway(config_path: Path | None = None) -> FastMCP:
     )
     async def mcp_call(
         server_name: str, tool_name: str, arguments: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         """Call a tool on an enabled child MCP without adding another ChatGPT connection.
 
         First call mcp_tools to learn the exact tool name and argument schema. Tool safety
@@ -409,7 +410,18 @@ def create_gateway(config_path: Path | None = None) -> FastMCP:
             "checked_at": int(time.time()),
             "tool_count": runtime_states.get(server_name, {}).get("tool_count"),
         }
-        return {"server": server_name, "tool": tool_name, "result": _result_to_dict(result)}
+        # Keep child media/resource blocks at the top level. If an ImageContent
+        # block is nested inside JSON, ChatGPT only sees an opaque base64 string
+        # and cannot inspect its pixels without an unreliable conversion step.
+        return ToolResult(
+            content=list(getattr(result, "content", None) or []),
+            structured_content={
+                "server": server_name,
+                "tool": tool_name,
+                "result": _result_to_dict(result, include_content=False),
+            },
+            is_error=bool(getattr(result, "is_error", False)),
+        )
 
     @mcp.tool(
         annotations=ToolAnnotations(

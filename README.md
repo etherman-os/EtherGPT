@@ -4,6 +4,10 @@ One private ChatGPT Web plugin for an entire Mac or Linux/VPS: terminal, files, 
 
 EtherGPT runs locally and connects outbound through the official [OpenAI Secure MCP Tunnel](https://github.com/openai/tunnel-client). ChatGPT gets one plugin and one tunnel. EtherGPT fans that connection out to local STDIO MCPs and remote Streamable HTTP MCPs.
 
+**New here? Follow the [complete setup guide](docs/SETUP.md)** for tunnel
+creation, macOS/Homebrew, Linux desktop, root or non-root VPS installation,
+ChatGPT connection, MCP registration, updates, health checks, and troubleshooting.
+
 > **Full access is real.** In full mode, ChatGPT can run arbitrary shell commands and read, overwrite, or delete anything the EtherGPT service account can access. EtherGPT requires an explicit acknowledgement before it will start in this mode.
 
 ## Why it exists
@@ -18,6 +22,10 @@ EtherGPT keeps a small permanent tool surface in ChatGPT:
 - `mcp_add_*`, `mcp_set_enabled`, `mcp_remove`, `mcp_probe` — manage the registry from ChatGPT.
 
 New MCPs are immediately usable through `mcp_find_tools` and `mcp_call`; the ChatGPT plugin does not need a new tunnel or action scan. Frequently used MCPs may optionally be exposed as direct namespaced tools, which does require a gateway restart and ChatGPT action refresh.
+
+Child MCP image, audio, and resource blocks are forwarded as native top-level
+MCP content. A Blender viewport screenshot therefore reaches ChatGPT as an
+actual image instead of an opaque base64 string nested inside JSON.
 
 ## Architecture
 
@@ -44,10 +52,23 @@ The gateway and dashboards bind to loopback by default. The machine does not nee
 - An OpenAI tunnel ID and runtime API key.
 - A ChatGPT workspace/account where your existing custom plugin can run the desired write actions.
 
+## Create the OpenAI tunnel first
+
+1. Open [OpenAI Platform → Tunnels](https://platform.openai.com/settings/organization/tunnels).
+2. Create a tunnel named for the machine, such as `My MacBook` or `Production VPS`.
+3. Associate it with the Platform organization and ChatGPT workspace that will
+   use it.
+4. Copy the `tunnel_id` and runtime API key from the setup flow. Keep the key secret.
+
+Creating/editing tunnels requires Tunnels **Read + Manage**; running the client
+or selecting the tunnel in ChatGPT requires **Read + Use**. See the official
+[Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)
+and the [complete EtherGPT setup guide](docs/SETUP.md#2-create-an-openai-secure-mcp-tunnel).
+
 ## Install
 
 ```bash
-git clone https://github.com/YOUR_NAME/EtherGPT.git
+git clone https://github.com/etherman-os/EtherGPT.git
 cd EtherGPT
 ./install.sh
 ```
@@ -74,11 +95,15 @@ ethergpt run
 
 Then create or edit one ChatGPT Web plugin:
 
-1. Enable ChatGPT developer mode.
-2. Create a plugin using **Tunnel** connection mode.
-3. Select the same tunnel ID.
-4. Scan the tools and permit the write actions you want.
-5. Start a new chat and enable the EtherGPT plugin.
+1. In ChatGPT open **Settings → Security and login** and enable **Developer mode**.
+2. Open [ChatGPT Plugins](https://chatgpt.com/plugins) and select the plus button.
+3. Enter a name/description, then choose **Connection → Tunnel**.
+4. Select the same tunnel or paste its `tunnel_id`, create the connection, and
+   review the discovered EtherGPT tools.
+5. Start a new chat and enable the EtherGPT connection from the tools menu.
+
+See [Connect EtherGPT to ChatGPT](docs/SETUP.md#5-connect-to-chatgpt-web) for
+the complete flow and permission troubleshooting.
 
 ## Background service
 
@@ -206,6 +231,15 @@ Find every tool related to screenshots and call the Blender viewport screenshot 
 
 These use `mcp_add_http`, `mcp_add_stdio`, `mcp_set_enabled`, `mcp_find_tools`, and `mcp_call` behind the scenes. Dynamic MCPs are available immediately; no new tunnel or ChatGPT metadata refresh is required.
 
+Native media returned by dynamic tools is preserved. For example:
+
+```text
+Find Blender's viewport screenshot tool, call it, and describe the image itself.
+```
+
+ChatGPT should receive the PNG directly on the first successful tool call; it
+should not need to decode base64 into `/mnt/data` first.
+
 Inspect and control it:
 
 ```bash
@@ -259,6 +293,13 @@ ethergpt mcp tools blender
 ```
 
 Changing a dynamic child MCP does not require a ChatGPT refresh. Refresh is only required when EtherGPT's own top-level tool metadata or a directly exposed MCP changes.
+
+If a screenshot call succeeds but ChatGPT only sees base64/JSON, update
+EtherGPT, restart it, open the connection at ChatGPT Plugins, select
+**Refresh**, and start a new conversation. Current EtherGPT forwards MCP
+`ImageContent` at the top level. Whole-desktop screenshot MCPs may additionally
+need macOS **Privacy & Security → Screen Recording** permission; Blender's own
+viewport screenshot normally does not.
 
 ## Security model
 

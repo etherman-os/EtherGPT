@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from fastmcp import Client
+from mcp.types import ImageContent
 
 from ethergpt.config import default_config, save_config
 from ethergpt.gateway import DASHBOARD_HTML, create_gateway
@@ -55,6 +56,28 @@ async def test_dynamic_child_tool_call(configured_gateway) -> None:
         assert result.data["result"]["data"] == {"echo": "hello"}
 
 
+async def test_dynamic_child_image_is_forwarded_as_top_level_content(
+    configured_gateway,
+) -> None:
+    async with Client(configured_gateway) as client:
+        result = await client.call_tool(
+            "mcp_call",
+            {
+                "server_name": "sample",
+                "tool_name": "screenshot",
+                "arguments": {},
+            },
+        )
+
+    images = [item for item in result.content if isinstance(item, ImageContent)]
+    assert len(images) == 1
+    assert images[0].mimeType == "image/png"
+    assert images[0].data
+    assert result.data["server"] == "sample"
+    assert result.data["tool"] == "screenshot"
+    assert "content" not in result.data["result"]
+
+
 async def test_find_tools_across_dynamic_servers(configured_gateway) -> None:
     async with Client(configured_gateway) as client:
         result = await client.call_tool("mcp_find_tools", {"query": "echo"})
@@ -104,7 +127,7 @@ async def test_probe_updates_runtime_status(configured_gateway) -> None:
     async with Client(configured_gateway) as client:
         probe = await client.call_tool("mcp_probe", {"server_name": "sample"})
         assert probe.data["status"] == "connected"
-        assert probe.data["tool_count"] == 2
+        assert probe.data["tool_count"] == 3
         status = await client.call_tool("gateway_status", {})
         assert status.data["servers"]["sample"]["runtime_status"] == "connected"
 
