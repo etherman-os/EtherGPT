@@ -28,7 +28,16 @@ else
   echo "Installed $HOME/.local/bin/ethergpt"
 fi
 
-if ! command -v tunnel-client >/dev/null 2>&1 && [[ "${ETHERGPT_SKIP_TUNNEL_INSTALL:-0}" != "1" ]]; then
+if [[ "$SCOPE" == "system" ]]; then
+  TUNNEL_TARGET="/usr/local/bin/tunnel-client"
+else
+  TUNNEL_TARGET="$HOME/.local/bin/tunnel-client"
+fi
+
+# Background services have a deliberately smaller PATH than an interactive
+# shell. Do not skip the managed copy merely because an unrelated
+# tunnel-client happens to be discoverable from the user's shell.
+if [[ ! -x "$TUNNEL_TARGET" && "${ETHERGPT_SKIP_TUNNEL_INSTALL:-0}" != "1" ]]; then
   echo
   echo "Installing the verified official OpenAI tunnel-client…"
   "$ROOT_DIR/scripts/install-tunnel-client.sh"

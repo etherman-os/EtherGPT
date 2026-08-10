@@ -35,7 +35,17 @@ def install_service(config_path: Path, scope: Literal["user", "system"] = "user"
             "StandardOutPath": str(logs / "gateway.log"),
             "StandardErrorPath": str(logs / "gateway-error.log"),
             "EnvironmentVariables": {
-                "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+                "PATH": ":".join(
+                    [
+                        str(Path.home() / ".local" / "bin"),
+                        "/opt/homebrew/bin",
+                        "/usr/local/bin",
+                        "/usr/bin",
+                        "/bin",
+                        "/usr/sbin",
+                        "/sbin",
+                    ]
+                )
             },
         }
         target.write_bytes(plistlib.dumps(payload, sort_keys=False))

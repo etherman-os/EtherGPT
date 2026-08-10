@@ -1,3 +1,4 @@
+import plistlib
 from types import SimpleNamespace
 
 from ethergpt import service
@@ -42,3 +43,23 @@ def test_restart_bootstraps_once(monkeypatch, tmp_path) -> None:
     assert service.service_action("restart") == 0
     assert sum(command[:2] == ["launchctl", "bootstrap"] for command in calls) == 1
     assert not any(command[:2] == ["launchctl", "kickstart"] for command in calls)
+
+
+def test_macos_service_can_find_managed_tunnel_client(monkeypatch, tmp_path) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(service.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(service.os, "getuid", lambda: 501)
+    monkeypatch.setattr(service.Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr(service.subprocess, "run", fake_run)
+
+    target = service.install_service(tmp_path / ".config" / "ethergpt" / "config.json")
+    payload = plistlib.loads(target.read_bytes())
+
+    service_path = payload["EnvironmentVariables"]["PATH"].split(":")
+    assert service_path[0] == str(tmp_path / ".local" / "bin")
+    assert ["launchctl", "bootstrap", "gui/501", str(target)] in calls
