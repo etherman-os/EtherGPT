@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "open-gpt-host"
+version = "0.1.0"
+description = "Connect ChatGPT Web to one computer and all of its MCP servers through one OpenAI Secure MCP Tunnel"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Berkay" }]
+dependencies = [
+  "fastmcp>=3.0,<4",
+  "json5>=0.12,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<9",
+  "pytest-asyncio>=0.24,<2",
+]
+
+[project.scripts]
+opengpt = "opengpt.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/opengpt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
