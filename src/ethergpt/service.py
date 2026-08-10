@@ -46,8 +46,8 @@ def install_service(config_path: Path, scope: Literal["user", "system"] = "user"
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        subprocess.run(["launchctl", "bootstrap", domain, str(target)], check=True)
         subprocess.run(["launchctl", "enable", f"{domain}/{LAUNCHD_LABEL}"], check=True)
+        subprocess.run(["launchctl", "bootstrap", domain, str(target)], check=True)
         subprocess.run(["launchctl", "kickstart", "-k", f"{domain}/{LAUNCHD_LABEL}"], check=True)
         return target
     if system != "Linux":
@@ -102,12 +102,42 @@ def _systemd_quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def service_action(action: Literal["start", "stop", "restart", "status"]) -> int:
+def service_action(
+    action: Literal["start", "stop", "restart", "status", "enable", "disable"],
+) -> int:
     system = platform.system()
     if system == "Darwin":
         domain = f"gui/{os.getuid()}"
         service = f"{domain}/{LAUNCHD_LABEL}"
         target = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
+        if action == "enable":
+            if not target.exists():
+                print(f"Service is not installed: {target}", file=sys.stderr)
+                return 1
+            subprocess.run(["launchctl", "enable", service], check=True)
+            loaded = subprocess.run(
+                ["launchctl", "print", service],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            ).returncode == 0
+            if not loaded:
+                result = subprocess.run(
+                    ["launchctl", "bootstrap", domain, str(target)], check=False
+                )
+                if result.returncode != 0:
+                    return result.returncode
+            return subprocess.run(
+                ["launchctl", "kickstart", "-k", service], check=False
+            ).returncode
+        if action == "disable":
+            subprocess.run(
+                ["launchctl", "bootout", domain, str(target)],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return subprocess.run(["launchctl", "disable", service], check=False).returncode
         if action == "start":
             loaded = subprocess.run(
                 ["launchctl", "print", service],

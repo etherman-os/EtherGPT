@@ -521,7 +521,7 @@ def build_parser() -> argparse.ArgumentParser:
     service_sub = service.add_subparsers(dest="service_action", required=True)
     service_install = service_sub.add_parser("install")
     service_install.add_argument("--scope", choices=["user", "system"], default="user")
-    for action in ("start", "stop", "restart", "status"):
+    for action in ("start", "stop", "restart", "status", "enable", "disable"):
         service_sub.add_parser(action)
 
     mcp = subparsers.add_parser("mcp", help="Manage child MCP servers")

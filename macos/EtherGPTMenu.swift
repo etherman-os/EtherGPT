@@ -4,6 +4,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var timer: Timer?
     private let cli = NSString(string: "~/.local/bin/ethergpt").expandingTildeInPath
+    private let servicePlist = NSString(string: "~/Library/LaunchAgents/org.ethergpt.gateway.plist").expandingTildeInPath
     private let dashboard = URL(string: "http://127.0.0.1:8766/ui")!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -31,9 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(status)
         menu.addItem(.separator())
         menu.addItem(item("Open Dashboard", #selector(openDashboard)))
-        menu.addItem(item("Start", #selector(startService)))
+        menu.addItem(item("Enable & Start (Auto-start ON)", #selector(enableService)))
         menu.addItem(item("Restart", #selector(restartService)))
-        menu.addItem(item("Stop", #selector(stopService)))
+        menu.addItem(item("Disable & Stop (Auto-start OFF)", #selector(disableService)))
         menu.addItem(.separator())
         menu.addItem(item("Run Doctor in Terminal", #selector(runDoctor)))
         menu.addItem(item("Open Logs", #selector(openLogs)))
@@ -75,15 +76,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func run(_ arguments: [String]) {
+    private func showError(_ title: String, _ message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    private func run(_ arguments: [String], label: String) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self, FileManager.default.isExecutableFile(atPath: self.cli) else { return }
+            guard let self = self else { return }
+            guard FileManager.default.isExecutableFile(atPath: self.cli) else {
+                DispatchQueue.main.async {
+                    self.showError("EtherGPT command not found", self.cli)
+                }
+                return
+            }
             let process = Process()
+            let output = Pipe()
             process.executableURL = URL(fileURLWithPath: self.cli)
             process.arguments = arguments
-            try? process.run()
-            process.waitUntilExit()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.refreshStatus() }
+            process.standardOutput = output
+            process.standardError = output
+            do {
+                try process.run()
+                process.waitUntilExit()
+                let data = output.fileHandleForReading.readDataToEndOfFile()
+                let message = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if process.terminationStatus != 0 {
+                        self.showError("\(label) failed", message.isEmpty ? "Exit code \(process.terminationStatus)" : message)
+                    }
+                    self.refreshStatus()
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.showError("\(label) failed", error.localizedDescription)
+                }
+            }
         }
     }
 
@@ -93,10 +125,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSAppleScript(source: script)?.executeAndReturnError(nil)
     }
 
-    @objc private func openDashboard() { NSWorkspace.shared.open(dashboard) }
-    @objc private func startService() { run(["service", "start"]) }
-    @objc private func restartService() { run(["service", "restart"]) }
-    @objc private func stopService() { run(["service", "stop"]) }
+    @objc private func openDashboard() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let online = self.fetch(URL(string: "http://127.0.0.1:8766/readyz")!)
+            DispatchQueue.main.async {
+                if online {
+                    if !NSWorkspace.shared.open(self.dashboard) {
+                        self.showError("Could not open dashboard", self.dashboard.absoluteString)
+                    }
+                } else {
+                    self.showError(
+                        "EtherGPT is off",
+                        "Choose “Enable & Start (Auto-start ON)” first, then open the dashboard."
+                    )
+                }
+            }
+        }
+    }
+    @objc private func enableService() {
+        if FileManager.default.fileExists(atPath: servicePlist) {
+            run(["service", "enable"], label: "Enable & Start")
+        } else {
+            run(["service", "install", "--scope", "user"], label: "Install & Start")
+        }
+    }
+    @objc private func restartService() { run(["service", "restart"], label: "Restart") }
+    @objc private func disableService() { run(["service", "disable"], label: "Disable & Stop") }
     @objc private func runDoctor() { terminal("\"\(cli)\" doctor; read -n 1") }
     @objc private func openLogs() {
         NSWorkspace.shared.open(URL(fileURLWithPath: NSString(string: "~/Library/Logs/EtherGPT").expandingTildeInPath))

@@ -89,6 +89,16 @@ ethergpt service install --scope user
 ./scripts/install-macos-menu.sh
 ```
 
+After installation, control persistent startup from the menu bar or the CLI:
+
+```bash
+ethergpt service enable   # start now and at future logins
+ethergpt service disable  # stop now and stay off at future logins
+ethergpt service restart
+```
+
+The menu labels the same actions **Auto-start ON** and **Auto-start OFF** so the persistent full-access state is explicit.
+
 Linux/VPS user service:
 
 ```bash
