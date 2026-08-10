@@ -33,6 +33,7 @@ from .config import (
 from .gateway import create_gateway
 from .secrets import get_runtime_key, set_runtime_key
 from .service import install_service, service_action
+from .updater import update
 
 
 def _path(value: str | None) -> Path:
@@ -402,6 +403,10 @@ def command_service(args: argparse.Namespace) -> int:
     return service_action(args.service_action)
 
 
+def command_update() -> int:
+    return update()
+
+
 def command_power(path: Path, turn_on: bool) -> int:
     """Persistently turn the installed EtherGPT experience on or off."""
     system = platform.system()
@@ -528,6 +533,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("on", help="Start now and automatically after login or boot")
     subparsers.add_parser("off", help="Stop now and stay off after login or boot")
+    subparsers.add_parser("update", help="Check origin/main and install an available update")
 
     init = subparsers.add_parser("init", help="Create configuration and store tunnel credentials")
     init.add_argument("--name")
@@ -600,6 +606,8 @@ def main() -> int:
             return command_power(_path(args.config), True)
         if args.action == "off":
             return command_power(_path(args.config), False)
+        if args.action == "update":
+            return command_update()
         if args.action == "init":
             return command_init(args)
         if args.action == "serve":

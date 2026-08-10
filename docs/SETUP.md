@@ -184,6 +184,7 @@ Power commands are the same on macOS and Linux:
 ```bash
 ethergpt on    # start now and stay enabled after login/boot
 ethergpt off   # stop now and stay disabled after login/boot
+ethergpt update # check and install origin/main, then refresh the service
 ```
 
 On macOS, **Quit EtherGPT (Stop & Stay Off)** also removes the menu icon. Run
@@ -327,6 +328,21 @@ sudo journalctl -u ethergpt.service -n 200 --no-pager
 ```
 
 ### Update
+
+On macOS choose **Check & Install Update…** from the menu bar, or on any
+supported platform run:
+
+```bash
+ethergpt update
+```
+
+The updater checks `origin/main`, requires a clean Git checkout, fast-forwards
+only, reruns the platform installer, refreshes the LaunchAgent/systemd unit, and
+restarts the Linux service. If EtherGPT was installed from a wheel without a
+source checkout, it clones the official repository into
+`~/.local/share/ethergpt/source` or `/opt/ethergpt-source` for root Linux.
+
+Manual alternatives:
 
 macOS one-command install:
 

@@ -114,6 +114,7 @@ VPS hosts:
 ethergpt       # turn on now and automatically after login/boot
 ethergpt off   # stop now and stay off
 ethergpt on    # turn back on
+ethergpt update # check origin/main and install an available update
 ```
 
 On first use under Linux, bare `ethergpt` installs the appropriate systemd
@@ -145,6 +146,8 @@ ethergpt
 ```
 
 The launcher re-enables auto-start and starts the gateway, tunnel, and menu icon.
+Use **Check & Install Update…** in the macOS menu or run `ethergpt update` on
+macOS/Linux. The updater refuses to overwrite a Git checkout with local changes.
 
 ### Easy macOS setup with Homebrew
 

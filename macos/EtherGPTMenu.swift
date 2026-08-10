@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(item("Disable & Stop (Auto-start OFF)", #selector(disableService)))
         menu.addItem(.separator())
         menu.addItem(item("Run Doctor in Terminal", #selector(runDoctor)))
+        menu.addItem(item("Check & Install Update…", #selector(checkForUpdates)))
         menu.addItem(item("Open Logs", #selector(openLogs)))
         menu.addItem(.separator())
         menu.addItem(item("Quit EtherGPT (Stop & Stay Off)", #selector(quitEtherGPT)))
@@ -182,6 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func restartService() { run(["service", "restart"], label: "Restart") }
     @objc private func disableService() { run(["service", "disable"], label: "Disable & Stop") }
     @objc private func runDoctor() { terminal("\"\(cli)\" doctor; read -n 1") }
+    @objc private func checkForUpdates() { terminal("\"\(cli)\" update; echo; read -n 1") }
     @objc private func openLogs() {
         NSWorkspace.shared.open(URL(fileURLWithPath: NSString(string: "~/Library/Logs/EtherGPT").expandingTildeInPath))
     }
