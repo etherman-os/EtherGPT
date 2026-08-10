@@ -24,4 +24,4 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - run: swiftc -typecheck macos/OpenGPTMenu.swift -framework Cocoa
+      - run: swiftc -typecheck macos/EtherGPTMenu.swift -framework Cocoa

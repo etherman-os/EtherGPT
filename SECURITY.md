@@ -2,15 +2,15 @@
 
 ## Trust boundary
 
-Open-gpt is intentionally capable of giving ChatGPT the permissions of the local Open-gpt process. In full mode this includes arbitrary shell execution and whole-host file access. That behavior is the product's explicit purpose, not a sandbox escape.
+EtherGPT is intentionally capable of giving ChatGPT the permissions of the local EtherGPT process. In full mode this includes arbitrary shell execution and whole-host file access. That behavior is the product's explicit purpose, not a sandbox escape.
 
 Treat all of these as trusted computing base:
 
 - the ChatGPT account and workspace allowed to select the plugin;
 - the OpenAI tunnel and its runtime credential;
-- this Open-gpt installation;
+- this EtherGPT installation;
 - every registered child MCP package and remote MCP endpoint;
-- the operating-system account running Open-gpt.
+- the operating-system account running EtherGPT.
 
 Do not run full mode on a shared machine or expose the loopback gateway through an additional public reverse proxy.
 
@@ -21,7 +21,7 @@ Do not run full mode on a shared machine or expose the loopback gateway through 
 - Keep the gateway on `127.0.0.1` and use the outbound OpenAI Secure MCP Tunnel.
 - Pin npm, Python, container, and binary versions for child MCPs.
 - Store secrets through `env:VARIABLE` or `file:/path` references instead of literal registry values.
-- Stop or disable Open-gpt when remote access is not wanted.
+- Stop or disable EtherGPT when remote access is not wanted.
 
 ## Credentials
 

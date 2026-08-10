@@ -9,11 +9,11 @@ from pathlib import Path
 from .config import default_config_path
 
 
-KEYCHAIN_SERVICE = "org.opengpt.openai-tunnel-runtime"
+KEYCHAIN_SERVICE = "org.ethergpt.openai-tunnel-runtime"
 
 
 def _linux_secret_path() -> Path:
-    override = os.environ.get("OPEN_GPT_RUNTIME_KEY_FILE")
+    override = os.environ.get("ETHERGPT_RUNTIME_KEY_FILE")
     if override:
         return Path(override).expanduser()
     return default_config_path().parent / "runtime.key"

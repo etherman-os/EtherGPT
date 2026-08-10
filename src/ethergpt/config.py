@@ -13,16 +13,16 @@ SERVER_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 
 
 def default_config_path() -> Path:
-    override = os.environ.get("OPEN_GPT_CONFIG")
+    override = os.environ.get("ETHERGPT_CONFIG")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".config" / "opengpt" / "config.json"
+    return Path.home() / ".config" / "ethergpt" / "config.json"
 
 
 def default_config() -> dict[str, Any]:
     return {
         "version": 1,
-        "name": f"Open-gpt - {os.uname().nodename}",
+        "name": f"EtherGPT - {os.uname().nodename}",
         "access": {
             "mode": "full",
             "acknowledged_full_access": False,

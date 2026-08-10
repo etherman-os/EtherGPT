@@ -20,8 +20,19 @@ case "$(uname -m)" in
   *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
 esac
 
-ASSET="$PLATFORM-$ARCH.zip"
-BASE="https://github.com/openai/tunnel-client/releases/latest/download"
+VERSION="${TUNNEL_CLIENT_VERSION:-}"
+if [[ -z "$VERSION" ]]; then
+  RELEASE_URL="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+    https://github.com/openai/tunnel-client/releases/latest)"
+  VERSION="${RELEASE_URL##*/}"
+fi
+if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Could not resolve a valid tunnel-client release version: $VERSION" >&2
+  exit 1
+fi
+
+ASSET="tunnel-client-$VERSION-$PLATFORM-$ARCH.zip"
+BASE="https://github.com/openai/tunnel-client/releases/download/$VERSION"
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 

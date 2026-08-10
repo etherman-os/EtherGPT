@@ -9,12 +9,12 @@ from pathlib import Path
 from typing import Literal
 
 
-LAUNCHD_LABEL = "org.opengpt.gateway"
-SYSTEMD_UNIT = "opengpt.service"
+LAUNCHD_LABEL = "org.ethergpt.gateway"
+SYSTEMD_UNIT = "ethergpt.service"
 
 
 def _program_arguments(config_path: Path) -> list[str]:
-    return [sys.executable, "-m", "opengpt.cli", "--config", str(config_path), "run"]
+    return [sys.executable, "-m", "ethergpt.cli", "--config", str(config_path), "run"]
 
 
 def install_service(config_path: Path, scope: Literal["user", "system"] = "user") -> Path:
@@ -22,7 +22,7 @@ def install_service(config_path: Path, scope: Literal["user", "system"] = "user"
     if system == "Darwin":
         if scope != "user":
             raise ValueError("macOS gateway must run in the logged-in user session")
-        logs = Path.home() / "Library" / "Logs" / "Open-gpt"
+        logs = Path.home() / "Library" / "Logs" / "EtherGPT"
         logs.mkdir(parents=True, exist_ok=True)
         target = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -63,7 +63,7 @@ def install_service(config_path: Path, scope: Literal["user", "system"] = "user"
     arguments = " ".join(_systemd_quote(value) for value in _program_arguments(config_path))
     target.write_text(
         "[Unit]\n"
-        "Description=Open-gpt for ChatGPT\n"
+        "Description=EtherGPT for ChatGPT\n"
         "After=network-online.target\n"
         "Wants=network-online.target\n\n"
         "[Service]\n"
@@ -76,7 +76,7 @@ def install_service(config_path: Path, scope: Literal["user", "system"] = "user"
         "[Install]\n"
         "WantedBy=default.target\n" if user_mode else
         "[Unit]\n"
-        "Description=Open-gpt for ChatGPT\n"
+        "Description=EtherGPT for ChatGPT\n"
         "After=network-online.target\n"
         "Wants=network-online.target\n\n"
         "[Service]\n"

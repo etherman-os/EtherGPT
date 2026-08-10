@@ -31,7 +31,7 @@ DASHBOARD_HTML = """<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Open-gpt</title>
+  <title>EtherGPT</title>
   <style>
     :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; }
     body { margin: 0; background: #0a0d12; color: #e9eef8; }
@@ -59,7 +59,7 @@ DASHBOARD_HTML = """<!doctype html>
   </style>
 </head>
 <body><main>
-  <h1>Open-gpt</h1>
+  <h1>EtherGPT</h1>
   <p class="sub">One private ChatGPT connection for this machine and all of its MCP servers.</p>
   <section class="top" id="summary"><div class="metric">Loading…</div></section>
   <h2>MCP registry</h2><section id="servers"></section>
@@ -138,7 +138,7 @@ def _status_snapshot(
     runtime_states = runtime_states or {}
     return {
         "ok": True,
-        "service": "open-gpt",
+        "service": "ethergpt",
         "version": __version__,
         "hostname": __import__("platform").node(),
         "name": config.get("name"),
@@ -219,7 +219,7 @@ def create_gateway(config_path: Path | None = None) -> FastMCP:
             await child_pool.close()
 
     mcp = FastMCP(
-        initial.get("name", "Open-gpt"),
+        initial.get("name", "EtherGPT"),
         version=__version__,
         instructions=(
             "This is the trusted host gateway for one user-controlled computer. "
@@ -542,7 +542,7 @@ def create_gateway(config_path: Path | None = None) -> FastMCP:
         )
     )
     async def mcp_remove(server_name: str) -> dict[str, Any]:
-        """Remove a child MCP from the Open-gpt registry."""
+        """Remove a child MCP from the EtherGPT registry."""
         current = load_config(path)
         if server_name not in current.get("servers", {}):
             raise KeyError(f"Unknown MCP server: {server_name}")
@@ -560,7 +560,7 @@ def create_gateway(config_path: Path | None = None) -> FastMCP:
 
     @mcp.custom_route("/healthz", methods=["GET"])
     async def healthz(request: Request) -> JSONResponse:
-        return JSONResponse({"status": "live", "service": "open-gpt", "version": __version__})
+        return JSONResponse({"status": "live", "service": "ethergpt", "version": __version__})
 
     @mcp.custom_route("/readyz", methods=["GET"])
     async def readyz(request: Request) -> JSONResponse:

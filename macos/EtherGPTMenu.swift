@@ -3,13 +3,13 @@ import Cocoa
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var timer: Timer?
-    private let cli = NSString(string: "~/.local/bin/opengpt").expandingTildeInPath
+    private let cli = NSString(string: "~/.local/bin/ethergpt").expandingTildeInPath
     private let dashboard = URL(string: "http://127.0.0.1:8766/ui")!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.title = "Open-gpt …"
+        statusItem.button?.title = "EtherGPT …"
         buildMenu()
         refreshStatus()
         timer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
@@ -62,13 +62,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let tunnel = self.fetch(URL(string: "http://127.0.0.1:8088/readyz")!)
             DispatchQueue.main.async {
                 if gateway && tunnel {
-                    self.statusItem.button?.title = "Open-gpt ✓"
+                    self.statusItem.button?.title = "EtherGPT ✓"
                     self.statusItem.menu?.item(withTag: 100)?.title = "Gateway ✓   Tunnel ✓"
                 } else if gateway {
-                    self.statusItem.button?.title = "Open-gpt !"
+                    self.statusItem.button?.title = "EtherGPT !"
                     self.statusItem.menu?.item(withTag: 100)?.title = "Gateway ✓   Tunnel offline"
                 } else {
-                    self.statusItem.button?.title = "Open-gpt OFF"
+                    self.statusItem.button?.title = "EtherGPT OFF"
                     self.statusItem.menu?.item(withTag: 100)?.title = "Gateway offline"
                 }
             }
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func stopService() { run(["service", "stop"]) }
     @objc private func runDoctor() { terminal("\"\(cli)\" doctor; read -n 1") }
     @objc private func openLogs() {
-        NSWorkspace.shared.open(URL(fileURLWithPath: NSString(string: "~/Library/Logs/Open-gpt").expandingTildeInPath))
+        NSWorkspace.shared.open(URL(fileURLWithPath: NSString(string: "~/Library/Logs/EtherGPT").expandingTildeInPath))
     }
     @objc private func quit() { NSApp.terminate(nil) }
 }

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from opengpt.config import (
+from ethergpt.config import (
     default_config,
     load_config,
     resolve_access_path,

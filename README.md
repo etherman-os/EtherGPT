@@ -1,16 +1,16 @@
-# Open-gpt
+# EtherGPT
 
 One private ChatGPT Web plugin for an entire Mac or Linux/VPS: terminal, files, long-running processes, and every MCP server registered on that machine.
 
-Open-gpt runs locally and connects outbound through the official [OpenAI Secure MCP Tunnel](https://github.com/openai/tunnel-client). ChatGPT gets one plugin and one tunnel. Open-gpt fans that connection out to local STDIO MCPs and remote Streamable HTTP MCPs.
+EtherGPT runs locally and connects outbound through the official [OpenAI Secure MCP Tunnel](https://github.com/openai/tunnel-client). ChatGPT gets one plugin and one tunnel. EtherGPT fans that connection out to local STDIO MCPs and remote Streamable HTTP MCPs.
 
-> **Full access is real.** In full mode, ChatGPT can run arbitrary shell commands and read, overwrite, or delete anything the Open-gpt service account can access. Open-gpt requires an explicit acknowledgement before it will start in this mode.
+> **Full access is real.** In full mode, ChatGPT can run arbitrary shell commands and read, overwrite, or delete anything the EtherGPT service account can access. EtherGPT requires an explicit acknowledgement before it will start in this mode.
 
 ## Why it exists
 
 Normally every Roblox, Rojo, Blender, filesystem, browser, or custom MCP needs its own ChatGPT connection. Adding another MCP means adding another tunnel or rescanning plugin actions.
 
-Open-gpt keeps a small permanent tool surface in ChatGPT:
+EtherGPT keeps a small permanent tool surface in ChatGPT:
 
 - `host_*` — shell, files, search, exact editing, and background processes.
 - `mcp_servers` / `mcp_find_tools` / `mcp_tools` — live MCP discovery.
@@ -26,7 +26,7 @@ ChatGPT Web plugin
        │
        │ OpenAI Secure MCP Tunnel (outbound HTTPS)
        ▼
-Open-gpt on your machine
+EtherGPT on your machine
        ├── full host tools (shell/files/processes)
        ├── Roblox MCP
        ├── Rojo MCP
@@ -47,29 +47,29 @@ The gateway and dashboards bind to loopback by default. The machine does not nee
 ## Install
 
 ```bash
-git clone https://github.com/YOUR_NAME/Open-gpt.git
-cd Open-gpt
+git clone https://github.com/YOUR_NAME/EtherGPT.git
+cd EtherGPT
 ./install.sh
 ```
 
-The installer downloads the matching official `tunnel-client` release and verifies its published SHA-256 checksum when the binary is not already installed. On macOS it also installs the health menu-bar app. Set `OPEN_GPT_SKIP_TUNNEL_INSTALL=1` or `OPEN_GPT_SKIP_MENU=1` to manage either component yourself.
+The installer downloads the matching official `tunnel-client` release and verifies its published SHA-256 checksum when the binary is not already installed. On macOS it also installs the health menu-bar app. Set `ETHERGPT_SKIP_TUNNEL_INSTALL=1` or `ETHERGPT_SKIP_MENU=1` to manage either component yourself.
 
 Make sure `~/.local/bin` is on `PATH`, then initialize full access:
 
 ```bash
-opengpt init \
+ethergpt init \
   --tunnel-id 'tunnel_<32-lowercase-hex-characters>' \
   --ask-key \
   --i-understand-full-access
 ```
 
-The runtime key is stored in macOS Keychain. On Linux it is stored in a mode-`0600` file under `~/.config/opengpt/` unless `CONTROL_PLANE_API_KEY` is provided by the service environment.
+The runtime key is stored in macOS Keychain. On Linux it is stored in a mode-`0600` file under `~/.config/ethergpt/` unless `CONTROL_PLANE_API_KEY` is provided by the service environment.
 
 Run it in the foreground first:
 
 ```bash
-opengpt doctor
-opengpt run
+ethergpt doctor
+ethergpt run
 ```
 
 Then create or edit one ChatGPT Web plugin:
@@ -78,29 +78,29 @@ Then create or edit one ChatGPT Web plugin:
 2. Create a plugin using **Tunnel** connection mode.
 3. Select the same tunnel ID.
 4. Scan the tools and permit the write actions you want.
-5. Start a new chat and enable the Open-gpt plugin.
+5. Start a new chat and enable the EtherGPT plugin.
 
 ## Background service
 
-Mac runs Open-gpt inside the logged-in GUI user session so native app MCPs such as Roblox or Blender can work:
+Mac runs EtherGPT inside the logged-in GUI user session so native app MCPs such as Roblox or Blender can work:
 
 ```bash
-opengpt service install --scope user
+ethergpt service install --scope user
 ./scripts/install-macos-menu.sh
 ```
 
 Linux/VPS user service:
 
 ```bash
-opengpt service install --scope user
+ethergpt service install --scope user
 ```
 
 Linux/VPS system service with root-level host permissions:
 
 ```bash
 sudo ./install.sh --system
-sudo opengpt init --tunnel-id tunnel_... --ask-key --i-understand-full-access
-sudo opengpt service install --scope system
+sudo ethergpt init --tunnel-id tunnel_... --ask-key --i-understand-full-access
+sudo ethergpt service install --scope system
 ```
 
 Only use the system/root mode on a VPS intentionally dedicated to this trust model.
@@ -110,33 +110,33 @@ Only use the system/root mode on a VPS intentionally dedicated to this trust mod
 Add a local STDIO MCP:
 
 ```bash
-opengpt mcp add rojo --env ROJO_PROJECT_DIR=~/Projects -- npx -y YOUR_ROJO_MCP_PACKAGE
-opengpt mcp add roblox -- /absolute/path/to/roblox-mcp --stdio
+ethergpt mcp add rojo --env ROJO_PROJECT_DIR=~/Projects -- npx -y YOUR_ROJO_MCP_PACKAGE
+ethergpt mcp add roblox -- /absolute/path/to/roblox-mcp --stdio
 ```
 
 Add a remote MCP:
 
 ```bash
-opengpt mcp add-url context7 https://mcp.context7.com/mcp
-opengpt mcp add-url private https://example.com/mcp --header 'Authorization=Bearer {env:PRIVATE_MCP_TOKEN}'
+ethergpt mcp add-url context7 https://mcp.context7.com/mcp
+ethergpt mcp add-url private https://example.com/mcp --header 'Authorization=Bearer {env:PRIVATE_MCP_TOKEN}'
 ```
 
 Import OpenCode's MCP registry:
 
 ```bash
-opengpt mcp import-opencode ~/.config/opencode/opencode.jsonc
+ethergpt mcp import-opencode ~/.config/opencode/opencode.jsonc
 ```
 
 Inspect and control it:
 
 ```bash
-opengpt mcp list
-opengpt mcp probe all
-opengpt mcp find blender
-opengpt mcp disable blender
-opengpt mcp enable blender
-opengpt status
-opengpt ui
+ethergpt mcp list
+ethergpt mcp probe all
+ethergpt mcp find blender
+ethergpt mcp disable blender
+ethergpt mcp enable blender
+ethergpt status
+ethergpt ui
 ```
 
 The same operations are available to ChatGPT through the stable registry tools. The local dashboard can add HTTP MCPs, probe health, enable/disable, and remove servers.
@@ -146,18 +146,18 @@ The same operations are available to ChatGPT through the stable registry tools. 
 For users who do not want whole-machine access:
 
 ```bash
-opengpt init --scoped-root ~/Projects --scoped-root ~/Documents
+ethergpt init --scoped-root ~/Projects --scoped-root ~/Documents
 ```
 
-In scoped mode, Open-gpt rejects file paths and command working directories outside those roots. This is a path boundary, not a complete OS sandbox; a child command can still have the permissions of the service account.
+In scoped mode, EtherGPT rejects file paths and command working directories outside those roots. This is a path boundary, not a complete OS sandbox; a child command can still have the permissions of the service account.
 
 ## Direct versus dynamic MCP exposure
 
 - `dynamic` (default): available immediately through `mcp_find_tools` and `mcp_call`; no ChatGPT refresh.
-- `direct`: every child tool also appears as `server_tool` in ChatGPT. Faster to call, but changing the set requires restarting Open-gpt and refreshing ChatGPT plugin actions.
+- `direct`: every child tool also appears as `server_tool` in ChatGPT. Faster to call, but changing the set requires restarting EtherGPT and refreshing ChatGPT plugin actions.
 
 ```bash
-opengpt mcp add-url context7 https://mcp.context7.com/mcp --expose direct
+ethergpt mcp add-url context7 https://mcp.context7.com/mcp --expose direct
 ```
 
 ## Health
@@ -165,15 +165,15 @@ opengpt mcp add-url context7 https://mcp.context7.com/mcp --expose direct
 - Gateway: `http://127.0.0.1:8766/healthz`, `/readyz`, `/ui`
 - Tunnel: `http://127.0.0.1:8088/healthz`, `/readyz`, `/metrics`, `/ui`
 
-`opengpt doctor` checks the configuration, tunnel ID, runtime key, tunnel binary, access acknowledgement, and registry.
+`ethergpt doctor` checks the configuration, tunnel ID, runtime key, tunnel binary, access acknowledgement, and registry.
 
 ## Security model
 
-- The OpenAI tunnel is outbound-only; Open-gpt does not publish the local MCP endpoint.
+- The OpenAI tunnel is outbound-only; EtherGPT does not publish the local MCP endpoint.
 - Full access is disabled until explicitly acknowledged.
 - Runtime tunnel credentials are not written to the registry JSON.
 - MCP environment variables and HTTP headers are redacted from the dashboard status response.
-- Child MCPs run with the same OS identity as Open-gpt. Only install MCPs you trust.
+- Child MCPs run with the same OS identity as EtherGPT. Only install MCPs you trust.
 - Tool descriptions from a malicious MCP can influence the model. Review third-party MCP source and pin package versions for serious use.
 
 ## Development
@@ -181,7 +181,7 @@ opengpt mcp add-url context7 https://mcp.context7.com/mcp --expose direct
 ```bash
 uv sync --extra dev
 uv run pytest
-uv run opengpt --help
+uv run ethergpt --help
 ```
 
-MIT licensed. Open-gpt is independent software and is not affiliated with or endorsed by OpenAI.
+MIT licensed. EtherGPT is independent software and is not affiliated with or endorsed by OpenAI.

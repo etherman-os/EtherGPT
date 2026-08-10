@@ -139,15 +139,15 @@ def command_run(args: argparse.Namespace) -> int:
     ):
         raise PermissionError(
             "Full access must be explicitly acknowledged: "
-            "opengpt init --i-understand-full-access"
+            "ethergpt init --i-understand-full-access"
         )
     tunnel = config["tunnel"]
     tunnel_id = tunnel.get("tunnel_id", "")
     if not tunnel_id:
-        raise RuntimeError("Tunnel ID is missing; run opengpt init")
+        raise RuntimeError("Tunnel ID is missing; run ethergpt init")
     runtime_key = get_runtime_key()
     if not runtime_key:
-        raise RuntimeError("Runtime API key is missing; run opengpt init --ask-key")
+        raise RuntimeError("Runtime API key is missing; run ethergpt init --ask-key")
     binary_raw = str(tunnel.get("binary", "tunnel-client"))
     binary = shutil.which(binary_raw) or str(Path(binary_raw).expanduser())
     if not Path(binary).is_file():
@@ -157,7 +157,7 @@ def command_run(args: argparse.Namespace) -> int:
         [
             sys.executable,
             "-m",
-            "opengpt.cli",
+            "ethergpt.cli",
             "--config",
             str(path),
             "serve",
@@ -343,7 +343,7 @@ def command_mcp(args: argparse.Namespace) -> int:
         if command and command[0] == "--":
             command = command[1:]
         if not command:
-            raise ValueError("Usage: opengpt mcp add NAME -- COMMAND [ARGS...]")
+            raise ValueError("Usage: ethergpt mcp add NAME -- COMMAND [ARGS...]")
         config.setdefault("servers", {})[args.name] = {
             "type": "stdio",
             "command": command,
@@ -486,7 +486,7 @@ async def _command_mcp_find(path: Path, query: str, max_results: int) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="opengpt", description="One ChatGPT MCP gateway per machine")
+    parser = argparse.ArgumentParser(prog="ethergpt", description="One ChatGPT MCP gateway per machine")
     parser.add_argument("--config", help="Path to config.json")
     parser.add_argument("--version", action="version", version=__version__)
     subparsers = parser.add_subparsers(dest="action", required=True)

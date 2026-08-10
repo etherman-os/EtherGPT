@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from opengpt.config import default_config, save_config
-from opengpt.gateway import create_gateway
+from ethergpt.config import default_config, save_config
+from ethergpt.gateway import create_gateway
 
 
 @pytest.fixture

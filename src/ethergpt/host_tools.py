@@ -36,7 +36,7 @@ def register_host_tools(mcp: FastMCP, config: dict[str, Any]) -> None:
         ):
             raise PermissionError(
                 "Full host access has not been acknowledged. Run "
-                "`opengpt init --i-understand-full-access`."
+                "`ethergpt init --i-understand-full-access`."
             )
 
     @mcp.tool(

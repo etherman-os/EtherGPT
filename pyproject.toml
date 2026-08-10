@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "open-gpt-host"
+name = "ethergpt-host"
 version = "0.1.0"
 description = "Connect ChatGPT Web to one computer and all of its MCP servers through one OpenAI Secure MCP Tunnel"
 readme = "README.md"
@@ -22,10 +22,10 @@ dev = [
 ]
 
 [project.scripts]
-opengpt = "opengpt.cli:main"
+ethergpt = "ethergpt.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/opengpt"]
+packages = ["src/ethergpt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
