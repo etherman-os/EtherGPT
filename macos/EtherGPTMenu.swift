@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
     private let cli = NSString(string: "~/.local/bin/ethergpt").expandingTildeInPath
     private let servicePlist = NSString(string: "~/Library/LaunchAgents/org.ethergpt.gateway.plist").expandingTildeInPath
+    private let menuService = "gui/\(getuid())/org.ethergpt.menu"
     private let dashboard = URL(string: "http://127.0.0.1:8766/ui")!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -39,7 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(item("Run Doctor in Terminal", #selector(runDoctor)))
         menu.addItem(item("Open Logs", #selector(openLogs)))
         menu.addItem(.separator())
-        menu.addItem(item("Quit Menu (service keeps running)", #selector(quit)))
+        menu.addItem(item("Quit EtherGPT (Stop & Stay Off)", #selector(quitEtherGPT)))
         statusItem.menu = menu
     }
 
@@ -119,6 +120,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func runSync(_ executable: String, _ arguments: [String]) -> (Int32, String) {
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.standardOutput = output
+        process.standardError = output
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            return (
+                process.terminationStatus,
+                String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            )
+        } catch {
+            return (1, error.localizedDescription)
+        }
+    }
+
     private func terminal(_ command: String) {
         let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         let script = "tell application \"Terminal\"\nactivate\ndo script \"\(escaped)\"\nend tell"
@@ -156,7 +177,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openLogs() {
         NSWorkspace.shared.open(URL(fileURLWithPath: NSString(string: "~/Library/Logs/EtherGPT").expandingTildeInPath))
     }
-    @objc private func quit() { NSApp.terminate(nil) }
+    @objc private func quitEtherGPT() {
+        timer?.invalidate()
+        statusItem.button?.title = "EtherGPT stopping…"
+        statusItem.menu?.items.forEach { $0.isEnabled = false }
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let stopped = self.runSync(self.cli, ["service", "disable"])
+            if stopped.0 != 0 {
+                DispatchQueue.main.async {
+                    self.showError(
+                        "Could not stop EtherGPT",
+                        stopped.1.isEmpty ? "Exit code \(stopped.0)" : stopped.1
+                    )
+                    self.buildMenu()
+                    self.refreshStatus()
+                }
+                return
+            }
+
+            let disabled = self.runSync("/bin/launchctl", ["disable", self.menuService])
+            if disabled.0 != 0 {
+                DispatchQueue.main.async {
+                    self.showError(
+                        "Could not disable menu auto-start",
+                        disabled.1.isEmpty ? "Exit code \(disabled.0)" : disabled.1
+                    )
+                    self.buildMenu()
+                }
+                return
+            }
+
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+        }
+    }
 }
 
 let application = NSApplication.shared

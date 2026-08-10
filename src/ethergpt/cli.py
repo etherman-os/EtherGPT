@@ -5,6 +5,7 @@ import asyncio
 import getpass
 import json
 import os
+import platform
 import re
 import shutil
 import signal
@@ -401,6 +402,50 @@ def command_service(args: argparse.Namespace) -> int:
     return service_action(args.service_action)
 
 
+def command_power(path: Path, turn_on: bool) -> int:
+    """Persistently turn the installed EtherGPT experience on or off."""
+    system = platform.system()
+    if system == "Darwin":
+        menu_service = f"gui/{os.getuid()}/org.ethergpt.menu"
+        menu_plist = Path.home() / "Library" / "LaunchAgents" / "org.ethergpt.menu.plist"
+        if turn_on:
+            app = Path.home() / "Applications" / "EtherGPT.app"
+            if app.exists():
+                return subprocess.run(["open", str(app)], check=False).returncode
+            gateway_plist = (
+                Path.home() / "Library" / "LaunchAgents" / "org.ethergpt.gateway.plist"
+            )
+            if gateway_plist.exists():
+                return service_action("enable")
+            install_service(path, "user")
+            return 0
+
+        gateway_result = service_action("disable")
+        subprocess.run(["launchctl", "disable", menu_service], check=False)
+        subprocess.run(
+            ["launchctl", "bootout", f"gui/{os.getuid()}", str(menu_plist)],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return gateway_result
+
+    if system == "Linux":
+        scope = "system" if os.geteuid() == 0 else "user"
+        unit = (
+            Path("/etc/systemd/system/ethergpt.service")
+            if scope == "system"
+            else Path.home() / ".config" / "systemd" / "user" / "ethergpt.service"
+        )
+        if turn_on and not unit.exists():
+            install_service(path, scope)
+            return 0
+        return service_action("enable" if turn_on else "disable")
+
+    print(f"Unsupported platform: {system}", file=sys.stderr)
+    return 1
+
+
 def command_ui(args: argparse.Namespace) -> int:
     config = load_config(_path(args.config))
     url = f"{_gateway_base(config)}/ui"
@@ -479,7 +524,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ethergpt", description="One ChatGPT MCP gateway per machine")
     parser.add_argument("--config", help="Path to config.json")
     parser.add_argument("--version", action="version", version=__version__)
-    subparsers = parser.add_subparsers(dest="action", required=True)
+    subparsers = parser.add_subparsers(dest="action")
+
+    subparsers.add_parser("on", help="Start now and automatically after login or boot")
+    subparsers.add_parser("off", help="Stop now and stay off after login or boot")
 
     init = subparsers.add_parser("init", help="Create configuration and store tunnel credentials")
     init.add_argument("--name")
@@ -548,6 +596,10 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
+        if args.action is None or args.action == "on":
+            return command_power(_path(args.config), True)
+        if args.action == "off":
+            return command_power(_path(args.config), False)
         if args.action == "init":
             return command_init(args)
         if args.action == "serve":

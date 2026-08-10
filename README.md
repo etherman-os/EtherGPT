@@ -82,6 +82,20 @@ Then create or edit one ChatGPT Web plugin:
 
 ## Background service
 
+The same persistent power commands work on macOS, Linux desktops, and Linux
+VPS hosts:
+
+```bash
+ethergpt       # turn on now and automatically after login/boot
+ethergpt off   # stop now and stay off
+ethergpt on    # turn back on
+```
+
+On first use under Linux, bare `ethergpt` installs the appropriate systemd
+unit automatically: a user unit for regular users or a system unit when run as
+root. A headless VPS has no menu icon; use these commands and
+`ethergpt status`.
+
 Mac runs EtherGPT inside the logged-in GUI user session so native app MCPs such as Roblox or Blender can work:
 
 ```bash
@@ -96,6 +110,36 @@ ethergpt service enable   # start now and at future logins
 ethergpt service disable  # stop now and stay off at future logins
 ethergpt service restart
 ```
+
+On macOS, **Quit EtherGPT (Stop & Stay Off)** in the menu-bar app stops the
+gateway and tunnel, disables both auto-start entries, and removes the menu icon.
+To turn everything back on, launch **EtherGPT** from Spotlight/Finder or run:
+
+```bash
+ethergpt
+```
+
+The launcher re-enables auto-start and starts the gateway, tunnel, and menu icon.
+
+### Easy macOS setup with Homebrew
+
+One command installs `uv` through Homebrew, downloads EtherGPT, creates the
+isolated runtime, installs the official OpenAI tunnel client, and adds both the
+menu-bar app and Spotlight launcher:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/etherman-os/EtherGPT/main/scripts/brew-setup.sh)"
+```
+
+Then initialize the tunnel once and start EtherGPT:
+
+```bash
+ethergpt init --tunnel-id tunnel_... --ask-key --i-understand-full-access
+ethergpt
+```
+
+The same script can also be run as `./scripts/brew-setup.sh` from a cloned repo.
+A signed Homebrew cask can be added after the first packaged macOS release.
 
 The menu labels the same actions **Auto-start ON** and **Auto-start OFF** so the persistent full-access state is explicit.
 

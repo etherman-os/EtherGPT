@@ -48,5 +48,4 @@ echo
 echo "Next:"
 echo "  ethergpt init --tunnel-id tunnel_... --ask-key --i-understand-full-access"
 echo "  ethergpt doctor"
-echo "  ethergpt run"
-echo "  ethergpt service install --scope $SCOPE"
+echo "  ethergpt"

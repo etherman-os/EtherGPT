@@ -180,4 +180,12 @@ def service_action(
     command = ["systemctl"]
     if os.geteuid() != 0:
         command.append("--user")
+    if action == "enable":
+        return subprocess.run(
+            command + ["enable", "--now", SYSTEMD_UNIT], check=False
+        ).returncode
+    if action == "disable":
+        return subprocess.run(
+            command + ["disable", "--now", SYSTEMD_UNIT], check=False
+        ).returncode
     return subprocess.run(command + [action, SYSTEMD_UNIT], check=False).returncode

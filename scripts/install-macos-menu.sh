@@ -10,20 +10,27 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 INSTALL_DIR="$HOME/.local/lib/ethergpt"
 TARGET="$INSTALL_DIR/EtherGPTMenu"
 PLIST="$HOME/Library/LaunchAgents/org.ethergpt.menu.plist"
+APP_DIR="$HOME/Applications/EtherGPT.app"
+APP_EXECUTABLE="$APP_DIR/Contents/MacOS/EtherGPT"
 
-mkdir -p "$INSTALL_DIR" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/EtherGPT"
+mkdir -p "$INSTALL_DIR" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/EtherGPT" "$APP_DIR/Contents/MacOS"
 swiftc "$ROOT_DIR/macos/EtherGPTMenu.swift" -framework Cocoa -o "$TARGET"
+swiftc "$ROOT_DIR/macos/EtherGPTLauncher.swift" -framework Cocoa -o "$APP_EXECUTABLE"
+
+cp "$ROOT_DIR/macos/Info.plist" "$APP_DIR/Contents/Info.plist"
 
 /usr/libexec/PlistBuddy -c "Clear dict" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :Label string org.ethergpt.menu" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :ProgramArguments array" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :ProgramArguments:0 string $TARGET" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :RunAtLoad bool true" "$PLIST"
-/usr/libexec/PlistBuddy -c "Add :KeepAlive bool true" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :KeepAlive bool false" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :StandardOutPath string $HOME/Library/Logs/EtherGPT/menu.log" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :StandardErrorPath string $HOME/Library/Logs/EtherGPT/menu-error.log" "$PLIST"
 
 launchctl bootout "gui/$(id -u)" "$PLIST" >/dev/null 2>&1 || true
+launchctl enable "gui/$(id -u)/org.ethergpt.menu"
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 launchctl kickstart -k "gui/$(id -u)/org.ethergpt.menu"
 echo "Installed EtherGPT menu-bar app: $TARGET"
+echo "Installed EtherGPT launcher app: $APP_DIR"
