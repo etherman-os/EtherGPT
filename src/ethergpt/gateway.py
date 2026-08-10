@@ -52,6 +52,8 @@ DASHBOARD_HTML = """<!doctype html>
     .pill, button { border-radius: 99px; background: #202a38; padding: 6px 10px; font-size: 12px; }
     button { color: #dfe8f8; border: 1px solid #35445b; cursor: pointer; }
     button:hover { border-color: #6d86ad; }
+    button.enabled { color: #43d18b; border-color: #287a58; background: #142b24; }
+    button.disabled { color: #aeb8c8; border-color: #445066; background: #1a202b; }
     .danger { color: #ff9298; }
     form { margin-top: 14px; display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; }
     input, select { color: #e9eef8; background: #0d121a; border: 1px solid #35445b; border-radius: 8px; padding: 9px; }
@@ -77,14 +79,11 @@ async function refresh() {
   const rows = Object.entries(data.servers).map(([name, server]) => {
     const healthClass = server.runtime_status === 'connected' ? 'ok' : (server.runtime_status === 'failed' ? 'bad' : 'off');
     const state = server.enabled ? server.runtime_status : 'disabled';
-    const toggle = server.enabled ? 'Disable' : 'Enable';
-    return `<div class="server"><div><div class="name">${name}</div><div class="details">${server.type} · ${server.expose} · ${server.tool_count ?? 0} tools</div></div><div class="actions"><button onclick="probe('${name}')">Probe</button><button onclick="setEnabled('${name}', ${!server.enabled})">${toggle}</button><button class="danger" onclick="removeServer('${name}')">Remove</button><div class="pill ${healthClass}">${state}</div></div></div>`;
+    const enabledLabel = server.enabled ? 'Enabled' : 'Disabled';
+    const enabledClass = server.enabled ? 'enabled' : 'disabled';
+    return `<div class="server"><div><div class="name">${name}</div><div class="details">${server.type} · ${server.expose} · ${server.tool_count ?? 0} tools</div></div><div class="actions"><button class="${enabledClass}" onclick="setEnabled('${name}', ${!server.enabled})">${enabledLabel}</button><button class="danger" onclick="removeServer('${name}')">Remove</button><div class="pill ${healthClass}">${state}</div></div></div>`;
   });
   document.querySelector('#servers').innerHTML = rows.join('') || '<div class="server">No MCP servers registered yet.</div>';
-}
-async function probe(name) {
-  await fetch('/api/probe', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({name})});
-  await refresh();
 }
 async function setEnabled(name, enabled) {
   await fetch('/api/server/enabled', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({name, enabled})});

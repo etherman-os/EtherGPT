@@ -31,7 +31,7 @@ EtherGPT on your machine
        ├── Roblox MCP
        ├── Rojo MCP
        ├── Blender MCP
-       ├── OpenCode MCPs
+       ├── browser / GitHub / custom MCPs
        └── any STDIO or Streamable HTTP MCP
 ```
 
@@ -117,25 +117,50 @@ Only use the system/root mode on a VPS intentionally dedicated to this trust mod
 
 ## MCP management
 
-Add a local STDIO MCP:
+### Add an MCP from the dashboard
+
+Open `http://127.0.0.1:8766/ui` or choose **Open Dashboard** from the macOS menu-bar app. The form at the bottom adds a remote Streamable HTTP MCP. Enter a short unique name and its full `/mcp` URL. Each registry row has an **Enabled / Disabled** toggle; the separate status pill reports the most recent connection check.
+
+STDIO MCPs launch local commands and therefore must be added from the CLI or through ChatGPT's `mcp_add_stdio` tool.
+
+### Add a local STDIO MCP
+
+Everything after `--` is the MCP process command:
 
 ```bash
-ethergpt mcp add rojo --env ROJO_PROJECT_DIR=~/Projects -- npx -y YOUR_ROJO_MCP_PACKAGE
-ethergpt mcp add roblox -- /absolute/path/to/roblox-mcp --stdio
+ethergpt mcp add context7 -- npx -y @upstash/context7-mcp
+ethergpt mcp add fetch -- uvx mcp-server-fetch
+ethergpt mcp add local-tool --cwd ~/Projects -- /absolute/path/to/server --stdio
 ```
 
-Add a remote MCP:
+Pass environment values with repeatable `--env KEY=VALUE` options. Prefer `{env:NAME}` references for secrets so credentials are resolved from the EtherGPT service environment instead of being copied into prompts or dashboard responses:
+
+```bash
+ethergpt mcp add rojo \
+  --env ROJO_PROJECT_DIR=/Users/me/Projects \
+  --env ROJO_BIN=/opt/homebrew/bin/rojo \
+  -- /absolute/path/to/rojo-mcp
+```
+
+### Add a remote HTTP MCP
 
 ```bash
 ethergpt mcp add-url context7 https://mcp.context7.com/mcp
 ethergpt mcp add-url private https://example.com/mcp --header 'Authorization=Bearer {env:PRIVATE_MCP_TOKEN}'
 ```
 
-Import OpenCode's MCP registry:
+### Add and manage MCPs from ChatGPT
 
-```bash
-ethergpt mcp import-opencode ~/.config/opencode/opencode.jsonc
+The EtherGPT plugin exposes the same registry operations to ChatGPT. Example prompts:
+
+```text
+Add the Streamable HTTP MCP https://mcp.example.com/mcp as example.
+Add a STDIO MCP named local-tool using: npx -y @example/mcp-server
+Disable blender, then list all registered MCPs.
+Find every tool related to screenshots and call the Blender viewport screenshot tool.
 ```
+
+These use `mcp_add_http`, `mcp_add_stdio`, `mcp_set_enabled`, `mcp_find_tools`, and `mcp_call` behind the scenes. Dynamic MCPs are available immediately; no new tunnel or ChatGPT metadata refresh is required.
 
 Inspect and control it:
 
@@ -149,7 +174,7 @@ ethergpt status
 ethergpt ui
 ```
 
-The same operations are available to ChatGPT through the stable registry tools. The local dashboard can add HTTP MCPs, probe health, enable/disable, and remove servers.
+The same operations are available to ChatGPT through the stable registry tools. `ethergpt mcp probe all` performs an explicit health check; enable/disable only controls whether EtherGPT is allowed to connect to that MCP.
 
 ## Scoped mode
 

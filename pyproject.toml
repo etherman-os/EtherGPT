@@ -12,7 +12,6 @@ license = { text = "MIT" }
 authors = [{ name = "Berkay" }]
 dependencies = [
   "fastmcp>=3.0,<4",
-  "json5>=0.12,<1",
 ]
 
 [project.optional-dependencies]

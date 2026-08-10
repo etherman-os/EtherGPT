@@ -30,7 +30,6 @@ from .config import (
     validate_server_name,
 )
 from .gateway import create_gateway
-from .importers import import_opencode
 from .secrets import get_runtime_key, set_runtime_key
 from .service import install_service, service_action
 
@@ -377,15 +376,6 @@ def command_mcp(args: argparse.Namespace) -> int:
         save_config(config, path)
         print(f"Added {args.name}: {args.url}")
         return 0
-    if action == "import-opencode":
-        result = import_opencode(
-            Path(args.source).expanduser(),
-            path,
-            expose=args.expose,
-            replace=args.replace,
-        )
-        _print_json(result)
-        return 0
     if action in {"enable", "disable", "remove"}:
         _mutate_server(path, args.name, action)
         print(f"{action}d {args.name}" if action != "remove" else f"removed {args.name}")
@@ -539,10 +529,6 @@ def build_parser() -> argparse.ArgumentParser:
     mcp_url.add_argument("url")
     mcp_url.add_argument("--header", action="append", default=[], metavar="KEY=VALUE")
     mcp_url.add_argument("--expose", choices=["dynamic", "direct"], default="dynamic")
-    mcp_import = mcp_sub.add_parser("import-opencode")
-    mcp_import.add_argument("source", nargs="?", default="~/.config/opencode/opencode.jsonc")
-    mcp_import.add_argument("--expose", choices=["dynamic", "direct"], default="dynamic")
-    mcp_import.add_argument("--replace", action="store_true")
     for action in ("enable", "disable", "remove", "tools"):
         child = mcp_sub.add_parser(action)
         child.add_argument("name")

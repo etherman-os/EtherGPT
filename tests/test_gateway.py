@@ -4,7 +4,7 @@ import pytest
 from fastmcp import Client
 
 from ethergpt.config import default_config, save_config
-from ethergpt.gateway import create_gateway
+from ethergpt.gateway import DASHBOARD_HTML, create_gateway
 
 
 @pytest.fixture
@@ -107,6 +107,11 @@ async def test_probe_updates_runtime_status(configured_gateway) -> None:
         assert probe.data["tool_count"] == 2
         status = await client.call_tool("gateway_status", {})
         assert status.data["servers"]["sample"]["runtime_status"] == "connected"
+
+
+def test_dashboard_uses_enabled_disabled_toggle() -> None:
+    assert "enabledLabel = server.enabled ? 'Enabled' : 'Disabled'" in DASHBOARD_HTML
+    assert ">Probe</button>" not in DASHBOARD_HTML
 
 
 async def test_direct_child_tools_are_namespaced(tmp_path: Path) -> None:
