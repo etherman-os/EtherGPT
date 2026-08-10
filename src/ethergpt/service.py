@@ -48,7 +48,6 @@ def install_service(config_path: Path, scope: Literal["user", "system"] = "user"
         )
         subprocess.run(["launchctl", "enable", f"{domain}/{LAUNCHD_LABEL}"], check=True)
         subprocess.run(["launchctl", "bootstrap", domain, str(target)], check=True)
-        subprocess.run(["launchctl", "kickstart", "-k", f"{domain}/{LAUNCHD_LABEL}"], check=True)
         return target
     if system != "Linux":
         raise ValueError(f"Unsupported service platform: {system}")
@@ -125,10 +124,9 @@ def service_action(
                 result = subprocess.run(
                     ["launchctl", "bootstrap", domain, str(target)], check=False
                 )
-                if result.returncode != 0:
-                    return result.returncode
+                return result.returncode
             return subprocess.run(
-                ["launchctl", "kickstart", "-k", service], check=False
+                ["launchctl", "kickstart", service], check=False
             ).returncode
         if action == "disable":
             subprocess.run(
@@ -152,10 +150,9 @@ def service_action(
                 result = subprocess.run(
                     ["launchctl", "bootstrap", domain, str(target)], check=False
                 )
-                if result.returncode != 0:
-                    return result.returncode
+                return result.returncode
             return subprocess.run(
-                ["launchctl", "kickstart", "-k", service], check=False
+                ["launchctl", "kickstart", service], check=False
             ).returncode
         if action == "stop":
             return subprocess.run(
@@ -171,11 +168,7 @@ def service_action(
             result = subprocess.run(
                 ["launchctl", "bootstrap", domain, str(target)], check=False
             )
-            if result.returncode != 0:
-                return result.returncode
-            return subprocess.run(
-                ["launchctl", "kickstart", "-k", service], check=False
-            ).returncode
+            return result.returncode
         return subprocess.run(["launchctl", "print", service], check=False).returncode
     command = ["systemctl"]
     if os.geteuid() != 0:

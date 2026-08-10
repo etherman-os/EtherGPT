@@ -3,6 +3,7 @@ import Cocoa
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var timer: Timer?
+    private var startingUntil = Date().addingTimeInterval(20)
     private let cli = NSString(string: "~/.local/bin/ethergpt").expandingTildeInPath
     private let servicePlist = NSString(string: "~/Library/LaunchAgents/org.ethergpt.gateway.plist").expandingTildeInPath
     private let menuService = "gui/\(getuid())/org.ethergpt.menu"
@@ -64,11 +65,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let tunnel = self.fetch(URL(string: "http://127.0.0.1:8088/readyz")!)
             DispatchQueue.main.async {
                 if gateway && tunnel {
+                    self.startingUntil = .distantPast
                     self.statusItem.button?.title = "EtherGPT ✓"
                     self.statusItem.menu?.item(withTag: 100)?.title = "Gateway ✓   Tunnel ✓"
                 } else if gateway {
                     self.statusItem.button?.title = "EtherGPT !"
                     self.statusItem.menu?.item(withTag: 100)?.title = "Gateway ✓   Tunnel offline"
+                } else if Date() < self.startingUntil {
+                    self.statusItem.button?.title = "EtherGPT …"
+                    self.statusItem.menu?.item(withTag: 100)?.title = "Starting gateway and tunnel…"
                 } else {
                     self.statusItem.button?.title = "EtherGPT OFF"
                     self.statusItem.menu?.item(withTag: 100)?.title = "Gateway offline"
@@ -165,6 +170,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     @objc private func enableService() {
+        startingUntil = Date().addingTimeInterval(20)
+        statusItem.button?.title = "EtherGPT …"
+        statusItem.menu?.item(withTag: 100)?.title = "Starting gateway and tunnel…"
         if FileManager.default.fileExists(atPath: servicePlist) {
             run(["service", "enable"], label: "Enable & Start")
         } else {

@@ -67,7 +67,4 @@ if !loaded {
     if bootstrapped.status != 0 { fail("Could not load EtherGPT menu", bootstrapped) }
 }
 
-let started = run("/bin/launchctl", ["kickstart", "-k", menuService])
-if started.status != 0 { fail("Could not start EtherGPT menu", started) }
-
 exit(0)
