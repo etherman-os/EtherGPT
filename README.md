@@ -202,6 +202,20 @@ ethergpt mcp add-url context7 https://mcp.context7.com/mcp --expose direct
 
 `ethergpt doctor` checks the configuration, tunnel ID, runtime key, tunnel binary, access acknowledgement, and registry.
 
+## Troubleshooting ChatGPT connections
+
+If ChatGPT reports that the EtherGPT tool or plugin "has been disabled" while `ethergpt status` still shows both **Gateway ONLINE** and **Tunnel ready**, the local tunnel is healthy and the conversation is holding stale or disabled plugin state. Open the connection at ChatGPT Plugins, select **Refresh**, confirm that the 20 EtherGPT tools are advertised, and start a new conversation with the plugin enabled.
+
+If only one child MCP is unavailable, check its **Enabled / Disabled** toggle in the dashboard and run:
+
+```bash
+ethergpt mcp enable blender
+ethergpt mcp probe blender
+ethergpt mcp tools blender
+```
+
+Changing a dynamic child MCP does not require a ChatGPT refresh. Refresh is only required when EtherGPT's own top-level tool metadata or a directly exposed MCP changes.
+
 ## Security model
 
 - The OpenAI tunnel is outbound-only; EtherGPT does not publish the local MCP endpoint.
