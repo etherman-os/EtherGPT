@@ -234,6 +234,46 @@ ethergpt mcp add rojo \
   -- /absolute/path/to/rojo-mcp
 ```
 
+### GitHub MCP and private clones on a root VPS
+
+For an intentionally root-controlled development VPS, install the protected Git
+helpers and the pinned official GitHub MCP image:
+
+```bash
+sudo install -d -o root -g root -m 0700 /root/ethergpt-workspace
+sudo install -d -o root -g root -m 0700 /root/.config/ethergpt/secrets
+sudo install -o root -g root -m 0600 /dev/null /root/.config/ethergpt/secrets/github.token
+sudo install -o root -g root -m 0700 scripts/ethergpt-github-auth /usr/local/sbin/ethergpt-github-auth
+sudo install -o root -g root -m 0700 scripts/ethergpt-github-credential /usr/local/sbin/ethergpt-github-credential
+sudo docker pull ghcr.io/github/github-mcp-server:v1.9.0
+sudo ethergpt mcp add github \
+  --env GITHUB_PERSONAL_ACCESS_TOKEN=file:/root/.config/ethergpt/secrets/github.token \
+  --env GITHUB_TOOLSETS=all \
+  -- docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_TOOLSETS \
+  ghcr.io/github/github-mcp-server:v1.9.0
+sudo ethergpt mcp disable github
+sudo git config --global credential.https://github.com.helper \
+  '!/usr/local/sbin/ethergpt-github-credential'
+```
+
+Create a [fine-grained GitHub personal access token](https://github.com/settings/personal-access-tokens/new)
+restricted to the required repositories and permissions. Enter it from an
+interactive root shell so it never appears in a command argument or shell
+history:
+
+```bash
+sudo -i                  # or: su - root
+ethergpt-github-auth
+```
+
+The command writes the token with mode `0600`, enables and probes the GitHub MCP,
+and leaves normal root `git clone`, `pull`, and `push` able to authenticate to
+private `github.com` repositories. Run `ethergpt-github-auth --clear` to erase the
+token and disable the MCP. `GITHUB_TOOLSETS=all` exposes all server toolsets, but
+the token's repository selection and permissions remain the real authorization
+boundary.
+
 ### Add a remote HTTP MCP
 
 ```bash

@@ -20,17 +20,24 @@ Keep EtherGPT running as `root`. Create these root-only locations:
 
 - `/root/.config/ethergpt/secrets/` for MCP credentials.
 - `/root/ethergpt-workspace/` for cloned repositories and test worktrees.
-- `/root/.config/ethergpt/secrets/github.env` for the GitHub credential.
+- `/root/.config/ethergpt/secrets/github.token` for the GitHub credential.
 
-Directories use mode `0700`; secret files use mode `0600`. The systemd service
-loads the secret environment file. EtherGPT's MCP registry refers to the token as
-`{env:GITHUB_PERSONAL_ACCESS_TOKEN}` instead of storing the token in
-`config.json`.
+Directories use mode `0700`; secret files use mode `0600`. EtherGPT's MCP
+registry refers to the token as
+`file:/root/.config/ethergpt/secrets/github.token` instead of storing the token
+in `config.json`.
 
 The GitHub MCP is installed from GitHub's official MCP server distribution and
 registered as a local STDIO child MCP. Its package/image version is pinned rather
 than tracking an unbounded latest version. The registry may be prepared before a
 token exists, but it remains disabled until a real token is installed.
+
+A root-owned Git credential helper reads the same token file only for HTTPS
+requests to `github.com`. This lets ordinary root `git clone`, `pull`, and `push`
+commands authenticate to private repositories without placing the token in a Git
+remote URL, shell history, repository config, or process argument. A root-only
+interactive command accepts token rotations with terminal echo disabled, enables
+the child MCP, and probes it before reporting success.
 
 ## Capabilities
 

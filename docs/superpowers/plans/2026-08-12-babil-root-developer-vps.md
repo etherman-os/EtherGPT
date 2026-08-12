@@ -199,16 +199,44 @@ Expected: service is active, gateway is loopback-only, status reports full mode 
 **Files:**
 - Modify later: `/root/.config/ethergpt/secrets/github.token`
 - Modify later: `/root/.config/ethergpt/config.json`
+- Create: `/usr/local/sbin/ethergpt-github-credential`
+- Create: `/usr/local/sbin/ethergpt-github-auth`
+- Modify: `/root/.gitconfig`
 
 **Interfaces:**
 - Consumes: A fine-grained PAT supplied outside logs and repository files.
 - Produces: Enabled and probed GitHub MCP.
 
-- [ ] **Step 1: Install the token without echoing it**
+- [ ] **Step 1: Install the Git credential helper**
 
-In an interactive root shell, use a hidden prompt that writes directly to the root-only file. Do not pass the token as a command-line argument.
+Create a root-owned mode `0700` helper that answers Git's credential protocol
+only when the operation is `get`, the protocol is `https`, and the host is
+`github.com`. It reads the password from
+`/root/.config/ethergpt/secrets/github.token` and returns username
+`x-access-token`. Configure it with:
 
-- [ ] **Step 2: Enable and probe GitHub**
+```bash
+git config --global credential.https://github.com.helper '!/usr/local/sbin/ethergpt-github-credential'
+```
+
+- [ ] **Step 2: Install the hidden token-entry command**
+
+Create root-owned mode `0700` `/usr/local/sbin/ethergpt-github-auth`. It reads
+the PAT with terminal echo disabled, atomically writes the mode `0600` token
+file, enables `github`, and probes the MCP. Its `--clear` action disables the MCP
+and empties the token file.
+
+- [ ] **Step 3: Install the token without echoing it**
+
+In an interactive root shell, run:
+
+```bash
+ethergpt-github-auth
+```
+
+Do not pass the token as a command-line argument.
+
+- [ ] **Step 4: Enable and probe GitHub**
 
 Run:
 
@@ -219,6 +247,6 @@ Run:
 
 Expected: probe succeeds and reports tools from the official GitHub MCP.
 
-- [ ] **Step 3: Perform a read-only identity/repository query first**
+- [ ] **Step 5: Perform a read-only identity/repository query first**
 
 Use EtherGPT `mcp_tools` and `mcp_call` to identify the authenticated GitHub user and list accessible repositories. Only after this succeeds should write-capable GitHub tools be used.

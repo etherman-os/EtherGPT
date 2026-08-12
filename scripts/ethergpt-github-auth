@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+token_file="${ETHERGPT_GITHUB_TOKEN_FILE:-${HOME:-/root}/.config/ethergpt/secrets/github.token}"
+ethergpt_cli="${ETHERGPT_CLI:-$(command -v ethergpt || true)}"
+ethergpt_config="${ETHERGPT_CONFIG:-${HOME:-/root}/.config/ethergpt/config.json}"
+
+if [[ -z "$ethergpt_cli" ]]; then
+  printf '%s\n' 'ethergpt was not found in PATH; set ETHERGPT_CLI.' >&2
+  exit 1
+fi
+
+install -d -m 0700 "$(dirname "$token_file")"
+
+if [[ "${1:-}" == "--clear" ]]; then
+  install -m 0600 /dev/null "$token_file"
+  "$ethergpt_cli" --config "$ethergpt_config" mcp disable github
+  printf '%s\n' 'GitHub token cleared; GitHub MCP disabled.'
+  exit 0
+fi
+
+if [[ $# -ne 0 ]]; then
+  printf '%s\n' 'Usage: ethergpt-github-auth [--clear]' >&2
+  exit 2
+fi
+
+token=""
+IFS= read -r -s -p 'GitHub fine-grained PAT: ' token
+if [[ -t 0 ]]; then
+  printf '\n'
+fi
+if [[ -z "$token" ]]; then
+  printf '%s\n' 'Token cannot be empty.' >&2
+  exit 1
+fi
+
+temporary="$(mktemp "${token_file}.XXXXXX")"
+trap 'rm -f "$temporary"' EXIT
+printf '%s' "$token" >"$temporary"
+chmod 0600 "$temporary"
+if [[ "$(id -u)" == "0" ]]; then
+  chown root:root "$temporary"
+fi
+mv -f "$temporary" "$token_file"
+trap - EXIT
+unset token
+
+"$ethergpt_cli" --config "$ethergpt_config" mcp enable github
+if ! "$ethergpt_cli" --config "$ethergpt_config" mcp probe github; then
+  "$ethergpt_cli" --config "$ethergpt_config" mcp disable github
+  printf '%s\n' 'GitHub MCP probe failed; it was disabled again.' >&2
+  exit 1
+fi
+
+printf '%s\n' 'GitHub authentication installed; GitHub MCP is enabled.'
