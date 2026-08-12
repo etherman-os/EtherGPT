@@ -4,6 +4,11 @@ set -euo pipefail
 token_file="${ETHERGPT_GITHUB_TOKEN_FILE:-${HOME:-/root}/.config/ethergpt/secrets/github.token}"
 ethergpt_cli="${ETHERGPT_CLI:-$(command -v ethergpt || true)}"
 ethergpt_config="${ETHERGPT_CONFIG:-${HOME:-/root}/.config/ethergpt/config.json}"
+if [[ "${ETHERGPT_GH_CLI+x}" == "x" ]]; then
+  github_cli="$ETHERGPT_GH_CLI"
+else
+  github_cli="$(command -v gh || true)"
+fi
 
 if [[ -z "$ethergpt_cli" ]]; then
   printf '%s\n' 'ethergpt was not found in PATH; set ETHERGPT_CLI.' >&2
@@ -13,9 +18,15 @@ fi
 install -d -m 0700 "$(dirname "$token_file")"
 
 if [[ "${1:-}" == "--clear" ]]; then
+  if [[ -n "$github_cli" && -x "$github_cli" ]]; then
+    github_login="$("$github_cli" api user --jq .login 2>/dev/null || true)"
+    if [[ -n "$github_login" ]]; then
+      "$github_cli" auth logout --hostname github.com --user "$github_login"
+    fi
+  fi
   install -m 0600 /dev/null "$token_file"
   "$ethergpt_cli" --config "$ethergpt_config" mcp disable github
-  printf '%s\n' 'GitHub token cleared; GitHub MCP disabled.'
+  printf '%s\n' 'GitHub token cleared; GitHub MCP disabled; GitHub CLI logged out when configured.'
   exit 0
 fi
 
@@ -52,4 +63,15 @@ if ! "$ethergpt_cli" --config "$ethergpt_config" mcp probe github; then
   exit 1
 fi
 
-printf '%s\n' 'GitHub authentication installed; GitHub MCP is enabled.'
+if [[ -n "$github_cli" && -x "$github_cli" ]]; then
+  if ! "$github_cli" auth login \
+    --hostname github.com \
+    --git-protocol https \
+    --with-token <"$token_file"; then
+    printf '%s\n' 'GitHub MCP is working, but GitHub CLI authentication failed.' >&2
+    exit 1
+  fi
+  printf '%s\n' 'GitHub authentication installed; GitHub MCP and GitHub CLI are enabled.'
+else
+  printf '%s\n' 'GitHub authentication installed; GitHub MCP is enabled; GitHub CLI was not found.'
+fi

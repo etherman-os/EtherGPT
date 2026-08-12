@@ -269,10 +269,20 @@ ethergpt-github-auth
 
 The command writes the token with mode `0600`, enables and probes the GitHub MCP,
 and leaves normal root `git clone`, `pull`, and `push` able to authenticate to
-private `github.com` repositories. Run `ethergpt-github-auth --clear` to erase the
-token and disable the MCP. `GITHUB_TOOLSETS=all` exposes all server toolsets, but
-the token's repository selection and permissions remain the real authorization
-boundary.
+private `github.com` repositories. When [GitHub CLI](https://cli.github.com/) is
+installed, the same command also configures its local `github.com` login, so
+terminal agents can use commands such as `gh repo list`, `gh api`, and
+`gh repo edit` without a second login flow. The token is sent to `gh` through
+standard input and is never placed in a command argument.
+
+Run `ethergpt-github-auth --clear` to erase the protected token, disable the MCP,
+and remove the local GitHub CLI login when one exists. This local logout does not
+revoke the PAT on GitHub; revoke or rotate it separately in GitHub settings when
+needed. If `gh` is not installed, MCP and HTTPS Git authentication still work and
+the helper reports that only GitHub CLI setup was skipped.
+
+`GITHUB_TOOLSETS=all` exposes all server toolsets, but the token's repository
+selection and permissions remain the real authorization boundary.
 
 ### Add a remote HTTP MCP
 
