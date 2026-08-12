@@ -17,7 +17,11 @@ ICON_GENERATOR="$INSTALL_DIR/EtherGPTIconGenerator"
 
 mkdir -p "$INSTALL_DIR" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/EtherGPT" "$APP_DIR/Contents/MacOS" "$APP_RESOURCES"
 swiftc "$ROOT_DIR/macos/EtherGPTMenu.swift" -framework Cocoa -o "$TARGET"
-swiftc "$ROOT_DIR/macos/EtherGPTLauncher.swift" -framework Cocoa -o "$APP_EXECUTABLE"
+swiftc \
+  "$ROOT_DIR/macos/EtherGPTLaunchLogic.swift" \
+  "$ROOT_DIR/macos/EtherGPTLauncher.swift" \
+  -framework Cocoa \
+  -o "$APP_EXECUTABLE"
 swiftc "$ROOT_DIR/macos/EtherGPTIconGenerator.swift" -framework Cocoa -o "$ICON_GENERATOR"
 
 ICON_TEMP="$(mktemp -d)"
@@ -26,6 +30,7 @@ trap 'rm -rf "$ICON_TEMP"' EXIT
 iconutil -c icns "$ICON_TEMP/EtherGPT.iconset" -o "$APP_RESOURCES/EtherGPT.icns"
 
 cp "$ROOT_DIR/macos/Info.plist" "$APP_DIR/Contents/Info.plist"
+"$ROOT_DIR/scripts/sign-macos-app.sh" "$APP_DIR"
 
 /usr/libexec/PlistBuddy -c "Clear dict" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :Label string org.ethergpt.menu" "$PLIST"

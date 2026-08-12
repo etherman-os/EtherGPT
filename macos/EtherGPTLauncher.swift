@@ -36,53 +36,62 @@ func fail(_ title: String, _ result: CommandResult) -> Never {
     exit(result.status == 0 ? 1 : result.status)
 }
 
-let home = FileManager.default.homeDirectoryForCurrentUser.path
-let cli = "\(home)/.local/bin/ethergpt"
-let gatewayPlist = "\(home)/Library/LaunchAgents/org.ethergpt.gateway.plist"
-let menuPlist = "\(home)/Library/LaunchAgents/org.ethergpt.menu.plist"
-let domain = "gui/\(getuid())"
-let menuService = "\(domain)/org.ethergpt.menu"
+@main
+struct EtherGPTLauncherApp {
+    static func main() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let cli = "\(home)/.local/bin/ethergpt"
+        let gatewayPlist = "\(home)/Library/LaunchAgents/org.ethergpt.gateway.plist"
+        let menuPlist = "\(home)/Library/LaunchAgents/org.ethergpt.menu.plist"
+        let domain = "gui/\(getuid())"
+        let menuService = "\(domain)/org.ethergpt.menu"
 
-guard FileManager.default.isExecutableFile(atPath: cli) else {
-    fail("EtherGPT command not found", CommandResult(status: 1, output: cli))
-}
-guard FileManager.default.fileExists(atPath: menuPlist) else {
-    fail("EtherGPT menu is not installed", CommandResult(status: 1, output: menuPlist))
-}
-
-let gateway: CommandResult
-if FileManager.default.fileExists(atPath: gatewayPlist) {
-    gateway = run(cli, ["service", "enable"])
-} else {
-    gateway = run(cli, ["service", "install", "--scope", "user"])
-}
-if gateway.status != 0 { fail("Could not start EtherGPT gateway", gateway) }
-
-let enabled = run("/bin/launchctl", ["enable", menuService])
-if enabled.status != 0 { fail("Could not enable EtherGPT menu", enabled) }
-
-let loaded = run("/bin/launchctl", ["print", menuService]).status == 0
-if !loaded {
-    let bootstrapped = run("/bin/launchctl", ["bootstrap", domain, menuPlist])
-    if bootstrapped.status != 0 { fail("Could not load EtherGPT menu", bootstrapped) }
-}
-
-func setupRequired() -> Bool? {
-    guard let url = URL(string: "http://127.0.0.1:8766/api/status"),
-          let data = try? Data(contentsOf: url),
-          let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let complete = payload["setup_complete"] as? Bool else { return nil }
-    return !complete
-}
-
-for _ in 0..<40 {
-    if let required = setupRequired() {
-        if required {
-            NSWorkspace.shared.open(URL(string: "http://127.0.0.1:8766/ui")!)
+        guard FileManager.default.isExecutableFile(atPath: cli) else {
+            fail("EtherGPT command not found", CommandResult(status: 1, output: cli))
         }
-        break
-    }
-    Thread.sleep(forTimeInterval: 0.25)
-}
+        guard FileManager.default.fileExists(atPath: menuPlist) else {
+            fail("EtherGPT menu is not installed", CommandResult(status: 1, output: menuPlist))
+        }
 
-exit(0)
+        let gateway: CommandResult
+        if FileManager.default.fileExists(atPath: gatewayPlist) {
+            gateway = run(cli, ["service", "enable"])
+        } else {
+            gateway = run(cli, ["service", "install", "--scope", "user"])
+        }
+        if gateway.status != 0 { fail("Could not start EtherGPT gateway", gateway) }
+
+        let enabled = run("/bin/launchctl", ["enable", menuService])
+        if enabled.status != 0 { fail("Could not enable EtherGPT menu", enabled) }
+
+        let loaded = run("/bin/launchctl", ["print", menuService]).status == 0
+        for step in menuLaunchPlan(isLoaded: loaded) {
+            switch step {
+            case .bootstrap:
+                let result = run("/bin/launchctl", ["bootstrap", domain, menuPlist])
+                if result.status != 0 { fail("Could not load EtherGPT menu", result) }
+            case .kickstart:
+                let result = run("/bin/launchctl", ["kickstart", "-k", menuService])
+                if result.status != 0 { fail("Could not start EtherGPT menu", result) }
+            }
+        }
+
+        func setupRequired() -> Bool? {
+            guard let url = URL(string: "http://127.0.0.1:8766/api/status"),
+                  let data = try? Data(contentsOf: url),
+                  let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let complete = payload["setup_complete"] as? Bool else { return nil }
+            return !complete
+        }
+
+        for _ in 0..<40 {
+            if let required = setupRequired() {
+                if required {
+                    NSWorkspace.shared.open(URL(string: "http://127.0.0.1:8766/ui")!)
+                }
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+    }
+}
