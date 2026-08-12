@@ -347,6 +347,12 @@ ethergpt mcp add-url context7 https://mcp.context7.com/mcp --expose direct
 
 If ChatGPT reports that the EtherGPT tool or plugin "has been disabled" while `ethergpt status` still shows both **Gateway ONLINE** and **Tunnel ready**, the local tunnel is healthy and the conversation is holding stale or disabled plugin state. Open the connection at ChatGPT Plugins, select **Refresh**, confirm that the 20 EtherGPT tools are advertised, and start a new conversation with the plugin enabled.
 
+If ChatGPT says the OpenAI-hosted tunnel URL **does not implement OAuth**, the
+tunnel was added as a normal URL/OAuth MCP connection. Do not paste the internal
+`tunnel-service.../v1/mcp/...` URL into a URL connector. Create or edit the
+developer-mode app, choose **Connection → Tunnel**, then select the associated
+tunnel or paste its `tunnel_id`.
+
 If only one child MCP is unavailable, check its **Enabled / Disabled** toggle in the dashboard and run:
 
 ```bash
